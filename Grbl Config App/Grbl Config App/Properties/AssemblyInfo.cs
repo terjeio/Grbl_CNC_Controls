@@ -8,9 +8,9 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTitle("Grbl Config App")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Io Engineering")]
 [assembly: AssemblyProduct("Grbl Config App")]
-[assembly: AssemblyCopyright("Copyright ©  2018")]
+[assembly: AssemblyCopyright("Copyright ©  2018 Io Engineering")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

@@ -40,14 +40,14 @@
             this.grblConfig.Size = new System.Drawing.Size(875, 515);
             this.grblConfig.TabIndex = 0;
             // 
-            // Form1
+            // UserUI
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(887, 529);
             this.Controls.Add(this.grblConfig);
-            this.Name = "Form1";
-            this.Text = "Grbl Configuration Tool";
+            this.Name = "UserUI";
+            this.Text = "Grbl Configuration App";
             this.ResumeLayout(false);
 
         }

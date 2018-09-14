@@ -96,14 +96,10 @@ namespace Grbl_Config_App
 
             GrblLanguage.language = "en_US";
 
-            this.grblConfig.Load += new EventHandler(grblConfig_Load);
-        }
-
-        void grblConfig_Load(object sender, EventArgs e)
-        {
             GrblInfo.Get();
             GrblSettings.Load();
-            this.Text += ", version " + GrblInfo.Version;
+
+            this.Text += ", Grbl version " + GrblInfo.Version;
         }
     }
 }
