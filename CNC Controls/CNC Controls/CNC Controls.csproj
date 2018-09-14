@@ -1,0 +1,171 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{288C05F8-20D7-4436-8E91-A1E306A4D7F6}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>CNC_Controls</RootNamespace>
+    <AssemblyName>CNC Controls</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Comms.cs" />
+    <Compile Include="CoolantControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="CoolantControl.Designer.cs">
+      <DependentUpon>CoolantControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="DPIControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="DPIControl.designer.cs">
+      <DependentUpon>DPIControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="DROControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="DROControl.designer.cs">
+      <DependentUpon>DROControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FlowControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="FlowControl.designer.cs">
+      <DependentUpon>FlowControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GCode.cs" />
+    <Compile Include="GCodeJob.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="GCodeJob.designer.cs">
+      <DependentUpon>GCodeJob.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GrblConfig.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="GrblConfig.designer.cs">
+      <DependentUpon>GrblConfig.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GrblCore.cs" />
+    <Compile Include="GrblStatusControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="GrblStatusControl.designer.cs">
+      <DependentUpon>GrblStatusControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Interface.cs" />
+    <Compile Include="MDIControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="MDIControl.designer.cs">
+      <DependentUpon>MDIControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PIDTunerControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="PIDTunerControl.designer.cs">
+      <DependentUpon>PIDTunerControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PPIControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="PPIControl.designer.cs">
+      <DependentUpon>PPIControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ProfileControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="ProfileControl.designer.cs">
+      <DependentUpon>ProfileControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Service Include="{94E38DFF-614B-4cbd-B67C-F211BB35CE8B}" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="CoolantControl.resx">
+      <DependentUpon>CoolantControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="DPIControl.resx">
+      <DependentUpon>DPIControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="DROControl.resx">
+      <DependentUpon>DROControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FlowControl.resx">
+      <DependentUpon>FlowControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="GCodeJob.resx">
+      <DependentUpon>GCodeJob.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="GrblConfig.resx">
+      <DependentUpon>GrblConfig.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="GrblStatusControl.resx">
+      <DependentUpon>GrblStatusControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MDIControl.resx">
+      <DependentUpon>MDIControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PIDTunerControl.resx">
+      <DependentUpon>PIDTunerControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PPIControl.resx">
+      <DependentUpon>PPIControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ProfileControl.resx">
+      <DependentUpon>ProfileControl.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="SPortLib">
+      <Guid>{F8E4294A-18DF-4CB8-8967-ABE5FD4D18B3}</Guid>
+      <VersionMajor>4</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
