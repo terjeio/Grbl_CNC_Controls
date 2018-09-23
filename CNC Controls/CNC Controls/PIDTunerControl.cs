@@ -157,7 +157,7 @@ namespace CNC_Controls
             GrblPIDData.RawData = "";
             GrblPIDData.data.Clear();
 
-            Comms.com.DataReceived += new Comms.DataReceivedHandler(GrblPIDData.Process);
+            Comms.com.DataReceived += new DataReceivedHandler(GrblPIDData.Process);
 
             Comms.com.PurgeQueue();
             Comms.com.WriteCommand(GrblConstants.CMD_GETPIDDATA);

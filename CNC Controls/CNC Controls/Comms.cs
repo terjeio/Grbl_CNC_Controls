@@ -1,7 +1,7 @@
 ﻿/*
  * Comms.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * 2018-09-23 / Io Engineering (Terje Io)
  *
  */
 
@@ -46,9 +46,14 @@ using System.Text;
 using System.Windows.Forms;
 using System.IO.Ports;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 
 namespace CNC_Controls
 {
+
+    public delegate void DataReceivedHandler (string data);
+
     public class Comms
     {
         public enum State
@@ -59,27 +64,44 @@ namespace CNC_Controls
             NAK
         }
 
+        public static StreamComms com = null;
+    }
+
+    public interface StreamComms
+    {
+
+        bool IsOpen { get; }
+        int OutCount { get; }
+        string Reply { get; }
+        Comms.State CommandState { get; set; }
+
+        void Close();
+        void WriteByte(byte data);
+        void WriteBytes(byte[] bytes, int len);
+        void WriteString(string data);
+        void WriteCommand (string command);
+        string getReply(string command);
+        void PurgeQueue();
+
+        event DataReceivedHandler DataReceived;
+    }
+
+#if USEELTIMA
+    public class SerialComms : StreamComms
+    {
         const int TXBUFFERSIZE = 4096, RXBUFFERSIZE = 1024;
 
-        public static Comms com = null;
-
-#if USEELTIMA
         private SPortLib.SPortAx SerialPort;
-#else
-        private SerialPort SerialPort;
-#endif
         private StringBuilder input = new StringBuilder(100);
-
-        public delegate void DataReceivedHandler (string data);
         public event DataReceivedHandler DataReceived;
 
-        private volatile State state = State.ACK;
+        private volatile Comms.State state = Comms.State.ACK;
 
-        public Comms (string PortParams)
+        public SerialComms (string PortParams)
         {
+            Comms.com = this;
             this.Reply = "";
 
-#if USEELTIMA
             try
             {
                 this.SerialPort = new SPortLib.SPortAx();
@@ -107,14 +129,109 @@ namespace CNC_Controls
                 this.SerialPort.PurgeQueue();
                 this.SerialPort.OnRxFlag += new SPortLib._ISPortAxEvents_OnRxFlagEventHandler(this.SerialRead);
             }
+        }
+
+        ~SerialComms()
+        {
+            this.Close();
+        }
+
+        public Comms.State CommandState { get { return this.state; } set { this.state = value; } }
+        public string Reply { get; private set; }
+        public bool IsOpen { get { return this.SerialPort.IsOpened; } }
+        public int OutCount { get { return this.SerialPort.OutCount; } }
+
+        public void PurgeQueue()
+        {
+            this.SerialPort.PurgeQueue();
+        }
+
+        public void Close()
+        {
+            if(this.IsOpen)
+                this.SerialPort.Close();                
+        }
+
+        public void WriteByte(byte data)
+        {
+            this.SerialPort.Write(ref data, 1);
+        }
+
+        public void WriteBytes(byte[] bytes, int len)
+        {
+            this.SerialPort.Write(ref bytes[0], len);
+        }
+
+        public void WriteString(string data)
+        {
+            this.SerialPort.WriteStr(data);
+        }
+
+        public void WriteCommand (string command)
+        {
+            this.state = Comms.State.AwaitAck;
+
+            if (command.Length > 1 || command == "%")
+                command += "\r";
+
+            this.SerialPort.WriteStr(command);
+        }
+
+        public string getReply(string command)
+        {
+            this.Reply = "";
+            this.WriteCommand(command);
+
+            while (this.state == Comms.State.AwaitAck)
+                Application.DoEvents();
+
+            return this.Reply;
+        }
+
+        private void SerialRead()
+        {
+            int pos = 0;
+
+            lock (this.input)
+            {
+                this.input.Append(this.SerialPort.ReadStr());
+
+                while (this.input.Length > 0 && (pos = this.input.ToString().IndexOf('\n')) > 0)
+                {
+                    this.Reply = this.input.ToString(0, pos - 1);
+                    this.input.Remove(0, pos + 1);
+                    this.state = this.Reply == "ok" ? State.ACK : (this.Reply == "FAILED" ? State.NAK : State.DataReceived);
+                    if (this.Reply.Length != 0 && this.DataReceived != null)
+                        this.DataReceived(this.Reply);
+                }
+            }
+        }
+    }
 
 #else
+
+    public class SerialComms : StreamComms
+    {
+        const int TXBUFFERSIZE = 4096, RXBUFFERSIZE = 1024;
+
+        private SerialPort SerialPort;
+        private StringBuilder input = new StringBuilder(100);
+
+        //     public delegate void DataReceivedHandler (string data);
+        public event DataReceivedHandler DataReceived;
+
+        private volatile Comms.State state = Comms.State.ACK;
+
+        public SerialComms(string PortParams)
+        {
+            Comms.com = this;
+            this.Reply = "";
+
             string[] parameter = PortParams.Substring(PortParams.IndexOf(":") + 1).Split(',');
 
             if (parameter.Count() < 4)
             {
-          //      this.disableUI();
-                MessageBox.Show("Unable to open printer: " + PortParams, "GCode Sender");
+                MessageBox.Show("Unable to open serial port: " + PortParams, "GCode Sender");
                 System.Environment.Exit(2);
             }
 
@@ -144,26 +261,15 @@ namespace CNC_Controls
                 this.PurgeQueue();
                 this.SerialPort.DataReceived += new SerialDataReceivedEventHandler(SerialPort_DataReceived);
             }
-#endif
-            Comms.com = this;
         }
 
-        ~Comms()
+        ~SerialComms()
         {
             this.Close();
         }
 
-        public State CommandState { get { return this.state; } set { this.state = value; } }
-
-#if USEELTIMA
-        public bool IsOpen { get { return this.SerialPort.IsOpened; } }
-        public int OutCount { get { return this.SerialPort.OutCount; } }
-
-        public void PurgeQueue()
-        {
-            this.SerialPort.PurgeQueue();
-        }
-#else
+        public Comms.State CommandState { get { return this.state; } set { this.state = value; } }
+        public string Reply { get; private set; }
         public bool IsOpen { get { return this.SerialPort.IsOpen; } }
         public int OutCount { get { return this.SerialPort.BytesToWrite; } }
 
@@ -171,15 +277,15 @@ namespace CNC_Controls
         {
             this.SerialPort.DiscardInBuffer();
             this.SerialPort.DiscardOutBuffer();
+            this.Reply = "";
         }
 
-        Parity ParseParity(string parity)
+        private Parity ParseParity(string parity)
         {
             Parity res = Parity.None;
 
             switch (parity)
             {
-
                 case "E":
                     res = Parity.Even;
                     break;
@@ -199,57 +305,36 @@ namespace CNC_Controls
 
             return res;
         }
-#endif
-
-
-//        public SPortLib.SPortAx Port { get { return this.SerialPort; } }
- 
-        public string Reply { get; private set; }
 
         public void Close()
         {
-            if(this.IsOpen)
-                this.SerialPort.Close();                
+            if (this.IsOpen)
+                this.SerialPort.Close();
         }
 
         public void WriteByte(byte data)
         {
-#if USEELTIMA
-            this.SerialPort.Write(ref data, 1);
-#else
             this.SerialPort.Write(new byte[1] { data }, 0, 1);
-#endif
         }
 
         public void WriteBytes(byte[] bytes, int len)
         {
-#if USEELTIMA
-            this.SerialPort.Write(ref bytes[0], len);
-#else
             this.SerialPort.Write(bytes, 0, len);
-#endif
         }
 
         public void WriteString(string data)
         {
-#if USEELTIMA
-            this.SerialPort.WriteStr(data);
-#else
             this.SerialPort.Write(data);
-#endif
         }
 
-        public void WriteCommand (string command)
+        public void WriteCommand(string command)
         {
             this.state = Comms.State.AwaitAck;
 
             if (command.Length > 1 || command == "%")
                 command += "\r";
-#if USEELTIMA
-            this.SerialPort.WriteStr(command);
-#else
+
             this.SerialPort.Write(command);
-#endif
         }
 
         public string getReply(string command)
@@ -263,26 +348,6 @@ namespace CNC_Controls
             return this.Reply;
         }
 
-#if USEELTIMA
-        private void SerialRead()
-        {
-            int pos = 0;
-
-            lock (this.input)
-            {
-                this.input.Append(this.SerialPort.ReadStr());
-
-                while (this.input.Length > 0 && (pos = this.input.ToString().IndexOf('\n')) > 0)
-                {
-                    this.Reply = this.input.ToString(0, pos - 1);
-                    this.input.Remove(0, pos + 1);
-                    this.state = this.Reply == "ok" ? State.ACK : (this.Reply == "FAILED" ? State.NAK : State.DataReceived);
-                    if (this.Reply.Length != 0 && this.DataReceived != null)
-                        this.DataReceived(this.Reply);
-                }
-            }
-        }
-#else
         void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             int pos = 0;
@@ -295,12 +360,132 @@ namespace CNC_Controls
                 {
                     this.Reply = this.input.ToString(0, pos - 1);
                     this.input.Remove(0, pos + 1);
-                    this.state = this.Reply == "ok" ? State.ACK : (this.Reply == "FAILED" ? State.NAK : State.DataReceived);
+                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply == "FAILED" ? Comms.State.NAK : Comms.State.DataReceived);
                     if (this.Reply.Length != 0 && this.DataReceived != null)
                         this.DataReceived(this.Reply);
                 }
             }
         }
+    }
 #endif
+
+    public class IPComms : StreamComms
+    {
+        private TcpClient ipserver = null;
+        private NetworkStream ipstream = null;
+        private byte[] buffer = new byte[512];
+        private volatile Comms.State state = Comms.State.ACK;
+        private StringBuilder input = new StringBuilder(100);
+
+        public event DataReceivedHandler DataReceived;
+
+        public IPComms (string host)
+        {
+            Comms.com = this;
+            this.Reply = "";
+
+            string[] parameter = host.Split(':');
+
+            if(parameter.Length == 2) try
+            {
+                this.ipserver = new TcpClient(parameter[0], int.Parse(parameter[1]));
+                this.ipstream = ipserver.GetStream();
+                this.ipstream.BeginRead(this.buffer, 0, buffer.Length, ReadComplete, this.buffer);
+            }
+            catch
+            {
+            }
+        }
+
+        ~IPComms()
+        {
+            this.Close();
+        }
+
+        public bool IsOpen { get { return this.ipserver != null && this.ipserver.Connected; } }
+        public int OutCount { get { return 0; } }
+        public Comms.State CommandState { get { return this.state; } set { this.state = value; } }
+        public string Reply { get; private set; }
+
+        public void PurgeQueue()
+        {
+            this.Reply = "";
+        }
+
+        public void Close()
+        {
+            if (this.IsOpen)
+                this.ipserver.Close();
+        }
+
+        public void WriteByte(byte data)
+        {
+            this.ipstream.Write(new byte[1] { data }, 0, 1);
+        }
+
+        public void WriteBytes(byte[] bytes, int len)
+        {
+            this.ipstream.Write(bytes, 0, len);
+        }
+
+        public void WriteString(string data)
+        {
+            byte[] bytes = ASCIIEncoding.ASCII.GetBytes(data);
+            this.ipstream.Write(bytes, 0, bytes.Length);
+        }
+
+        public void WriteCommand(string command)
+        {
+            this.state = Comms.State.AwaitAck;
+
+            if (command.Length > 1 || command == "%")
+                command += "\r";
+
+            WriteString(command);
+        }
+
+        public string getReply(string command)
+        {
+            this.Reply = "";
+            this.WriteCommand(command);
+
+            while (this.state == Comms.State.AwaitAck)
+                Application.DoEvents();
+
+            return this.Reply;
+        }
+
+        void ReadComplete(IAsyncResult iar)
+        {
+            int bytesAvailable = 0;
+            byte[] buffer = (byte[])iar.AsyncState;
+
+            try
+            {
+                bytesAvailable = ipstream.EndRead(iar);
+            }
+            catch
+            {
+                // error handling required here (and many other places)...
+            }
+
+            int pos = 0;
+
+            lock (this.input)
+            {
+                this.input.Append(System.Text.Encoding.ASCII.GetString(buffer, 0, bytesAvailable));
+
+                while (this.input.Length > 0 && (pos = this.input.ToString().IndexOf('\n')) > 0)
+                {
+                    this.Reply = this.input.ToString(0, pos - 1);
+                    this.input.Remove(0, pos + 1);
+                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply == "FAILED" ? Comms.State.NAK : Comms.State.DataReceived);
+                    if (this.Reply.Length != 0 && this.DataReceived != null)
+                        this.DataReceived(this.Reply);
+                }
+            }
+
+            ipstream.BeginRead(this.buffer, 0, buffer.Length, ReadComplete, this.buffer);
+        }
     }
 }

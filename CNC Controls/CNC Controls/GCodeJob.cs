@@ -328,7 +328,7 @@ namespace CNC_Controls
                     initOK = true;
                     serialSize = Math.Min(300, (int)(GrblInfo.SerialBufferSize * 0.9f)); // size should be less than hardware handshake HWM
                 }
-                Comms.com.DataReceived += new Comms.DataReceivedHandler(DataReceived);
+                Comms.com.DataReceived += new DataReceivedHandler(DataReceived);
      //           CNC_App.UserUI.ui.WindowTitle = this.file.filename;
                 poller.SetState(this.PollInterval);
             }

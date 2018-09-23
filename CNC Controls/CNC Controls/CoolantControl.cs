@@ -1,7 +1,7 @@
 ﻿/*
  * CoolantControl.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * 2018-09-22 / Io Engineering (Terje Io)
  *
  */
 
@@ -74,7 +74,7 @@ namespace CNC_Controls
             get { return this.chkFlood.Enabled; }
             set
             {
-                this.chkFlood.Enabled = value;
+                this.chkFlood.Enabled = this.chkMist.Enabled = value;
             }
         }
 

@@ -1,7 +1,7 @@
 ﻿/*
  * GrblStatusControl.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * 2018-09-14 / Io Engineering (Terje Io)
  *
  */
 
@@ -68,7 +68,7 @@ namespace CNC_Controls
         void chkCheckMode_CheckedChanged(object sender, EventArgs e)
         {
             if (((CheckBox)sender).Checked ? GCodeSender.state == GrblStates.Idle : GCodeSender.state == GrblStates.Check)
-                GCodeSender.SendMDICommand("$C");
+                GCodeSender.SendMDICommand(GCodeSender.state == GrblStates.Idle ? GrblConstants.CMD_CHECK : ((char)GrblConstants.CMD_RESET).ToString());
         }
 
         void btnUnlock_Click(object sender, EventArgs e)

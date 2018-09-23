@@ -1,7 +1,7 @@
 ﻿/*
  * GrblCore.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * 2018-09-23 / Io Engineering (Terje Io)
  *
  */
 
@@ -64,6 +64,7 @@ namespace CNC_Controls
             CMD_FEED_HOLD = "!",
             CMD_UNLOCK = "$X",
             CMD_HOMING = "$H",
+            CMD_CHECK = "$C",
             CMD_GETSETTINGS = "$$",
             CMD_GETPARSERSTATE = "$G",
             CMD_GETINFO = "$I",
@@ -82,6 +83,56 @@ namespace CNC_Controls
         Jog,
         Alarm,
         Door
+    }
+
+    public enum GrblSetting
+    {
+        PulseMicroseconds = 0,
+        StepperIdleLockTime = 1,
+        StepInvertMask = 2,
+        DirInvertMask = 3,
+        InvertStepperEnable = 4,
+        LimitPinsInvertMask = 5,
+        InvertProbePin = 6,
+        StatusReportMask = 10,
+        JunctionDeviation = 11,
+        ArcTolerance = 12,
+        ReportInches = 13,
+        ControlInvertMask = 14,
+        CoolantInvertMask = 15,
+        SpindleInvertMask = 16,
+        ControlPullUpDisableMask = 17,
+        LimitPullUpDisableMask = 18,
+        ProbePullUpDisable = 19,
+        SoftLimitsEnable = 20,
+        HardLimitsEnable = 21,
+        HomingEnable = 22,
+        HomingDirMask = 23,
+        HomingFeedRate = 24,
+        HomingSeekRate = 25,
+        HomingDebounceDelay = 26,
+        HomingPulloff = 27,
+        G73Retract = 28,
+        PulseDelayMicroseconds = 29,
+        RpmMax = 30,
+        RpmMin = 31,
+        LaserMode = 32,
+        PWMFreq = 33,
+        PWMOffValue = 34,
+        PWMMinValue = 35,
+        PWMMaxValue = 36,
+        StepperDeenergizeMask = 37,
+        SpindlePPR  = 38,
+        SpindlePGain  = 39,
+        SpindleIGain  = 40,
+        SpindleDGain  = 41,
+        HomingLocateCycles = 43,
+        HomingCycle_1  = 44,
+        HomingCycle_2  = 45,
+        HomingCycle_3  = 46,
+        HomingCycle_4  = 47,
+        HomingCycle_5  = 48,
+        HomingCycle_6  = 49
     }
 
     public enum StreamingState
@@ -217,7 +268,7 @@ namespace CNC_Controls
             GrblInfo.SerialBufferSize = 128;
             GrblInfo.HasATC = false;
 
-            Comms.com.DataReceived += new Comms.DataReceivedHandler(GrblInfo.Process);
+            Comms.com.DataReceived += new DataReceivedHandler(GrblInfo.Process);
 
             Comms.com.PurgeQueue();
             Comms.com.WriteCommand(GrblConstants.CMD_GETINFO);
@@ -257,7 +308,7 @@ namespace CNC_Controls
             offset.Clear();
             tool.Clear();
 
-            Comms.com.DataReceived += new Comms.DataReceivedHandler(process);
+            Comms.com.DataReceived += new DataReceivedHandler(process);
             Comms.com.PurgeQueue();
             Comms.com.WriteCommand(GrblConstants.CMD_GETNGCPARAMETERS);
 
@@ -450,6 +501,8 @@ namespace CNC_Controls
             GrblSettings.data.PrimaryKey = new DataColumn[] { GrblSettings.data.Columns["Id"] };
         }
 
+        public static bool Loaded { get { return GrblSettings.data.Rows.Count > 0; } }
+
         public static double parseDouble(string value)
         {
             double result;
@@ -462,11 +515,18 @@ namespace CNC_Controls
             return result;
         }
 
+        public static string GetValue(GrblSetting key)
+        {
+            DataRow[] rows = GrblSettings.data.Select("Id = " + ((int)key).ToString());
+
+            return rows.Count() == 1 ? (string)rows[0]["Value"] : null;
+        }
+
         public static void Load()
         {
             GrblSettings.data.Clear();
 
-            Comms.com.DataReceived += new Comms.DataReceivedHandler(GrblSettings.Process);
+            Comms.com.DataReceived += new DataReceivedHandler(GrblSettings.Process);
 
             Comms.com.PurgeQueue();
             Comms.com.WriteCommand(GrblConstants.CMD_GETSETTINGS);
