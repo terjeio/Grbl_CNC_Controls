@@ -1,7 +1,7 @@
 ﻿/*
  * GrblConfig.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2018-10-22 / Io Engineering (Terje Io)
  *
  */
 
@@ -86,7 +86,15 @@ namespace CNC_Controls
 
         void btnReload_Click(object sender, EventArgs e)
         {
-            GrblSettings.Load();
+            try
+            {
+                this.Cursor = Cursors.WaitCursor;
+                GrblSettings.Load();
+            }
+            finally
+            {
+                this.Cursor = Cursors.Default;
+            }
         }
 
         void btnBackup_Click(object sender, EventArgs e)
@@ -232,7 +240,6 @@ namespace CNC_Controls
                     //           this.wTextBox.TabIndex = Canvas.Row;
                     this.wTextBox.MaxLength = this.format.Length;
                     this.wTextBox.Enabled = this.Enabled;
-                    this.wTextBox.TextAlign = HorizontalAlignment.Right;
                     // Buggy - does not work	this.wTextBox.ModifiedChanged += new EventHandler(wWidget_ModifiedChanged);
                     this.wTextBox.TextChanged += new EventHandler(wWidget_TextChanged);
                     this.components.Add(this.wTextBox);
@@ -240,6 +247,7 @@ namespace CNC_Controls
                     if (this.dataType == DataType.INTEGER || this.dataType == DataType.FLOAT)
                     {
                         this.fp = new FPFormat(this.format);
+                        this.wTextBox.TextAlign = HorizontalAlignment.Right;
                         this.wTextBox.Size = TextRenderer.MeasureText("".PadRight(this.format.Length, '9'), this.wTextBox.Font);
                         this.wTextBox.KeyPress += new KeyPressEventHandler(wTextBox_KeyPress);
                         if ((double)Property["Min"] != double.NaN || (double)Property["Max"] != double.NaN)
@@ -248,6 +256,13 @@ namespace CNC_Controls
                             this.errorProvider = new ErrorProvider();
                             this.wTextBox.Validating += new CancelEventHandler(wTextBox_Validating);
                         }
+                    }
+                    else if (this.dataType == DataType.TEXT && this.format.StartsWith("x("))
+                    {
+                        int length = 8;
+                        int.TryParse(this.format.Substring(2).Replace(")", ""), out length);
+                        this.wTextBox.MaxLength = length;
+                        this.wTextBox.Size = new System.Drawing.Size(Math.Min(length * PPU, Canvas.Width - x - 15), 20);
                     }
                     else
                         this.wTextBox.Size = new System.Drawing.Size(this.format.Length * PPU, 20);

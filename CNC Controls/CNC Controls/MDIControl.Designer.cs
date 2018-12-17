@@ -39,6 +39,7 @@
             this.btnSend.Name = "btnSend";
             this.btnSend.Size = new System.Drawing.Size(41, 21);
             this.btnSend.TabIndex = 0;
+            this.btnSend.TabStop = false;
             this.btnSend.Text = "Send";
             this.btnSend.UseVisualStyleBackColor = true;
             // 
@@ -56,7 +57,7 @@
             this.txtMDI.Location = new System.Drawing.Point(43, 4);
             this.txtMDI.Name = "txtMDI";
             this.txtMDI.Size = new System.Drawing.Size(350, 20);
-            this.txtMDI.TabIndex = 2;
+            this.txtMDI.TabIndex = 1;
             // 
             // MDIControl
             // 

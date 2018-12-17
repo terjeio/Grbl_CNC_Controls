@@ -51,7 +51,8 @@
             this.chkFlood.Location = new System.Drawing.Point(21, 19);
             this.chkFlood.Name = "chkFlood";
             this.chkFlood.Size = new System.Drawing.Size(52, 17);
-            this.chkFlood.TabIndex = 20;
+            this.chkFlood.TabIndex = 0;
+            this.chkFlood.TabStop = false;
             this.chkFlood.Text = "Flood";
             this.chkFlood.UseVisualStyleBackColor = true;
             // 
@@ -61,7 +62,8 @@
             this.chkMist.Location = new System.Drawing.Point(21, 42);
             this.chkMist.Name = "chkMist";
             this.chkMist.Size = new System.Drawing.Size(45, 17);
-            this.chkMist.TabIndex = 18;
+            this.chkMist.TabIndex = 0;
+            this.chkMist.TabStop = false;
             this.chkMist.Text = "Mist";
             this.chkMist.UseVisualStyleBackColor = true;
             // 
@@ -71,7 +73,7 @@
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.Controls.Add(this.groupBox1);
             this.Name = "CoolantControl";
-            this.Size = new System.Drawing.Size(219, 73);
+            this.Size = new System.Drawing.Size(216, 73);
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
             this.ResumeLayout(false);

@@ -42,7 +42,7 @@
             this.chkCheckMode.Location = new System.Drawing.Point(126, 6);
             this.chkCheckMode.Name = "chkCheckMode";
             this.chkCheckMode.Size = new System.Drawing.Size(57, 17);
-            this.chkCheckMode.TabIndex = 44;
+            this.chkCheckMode.TabIndex = 0;
             this.chkCheckMode.TabStop = false;
             this.chkCheckMode.Text = "Check";
             this.chkCheckMode.UseVisualStyleBackColor = true;
@@ -52,7 +52,7 @@
             this.txtState.Location = new System.Drawing.Point(45, 3);
             this.txtState.Name = "txtState";
             this.txtState.Size = new System.Drawing.Size(74, 20);
-            this.txtState.TabIndex = 43;
+            this.txtState.TabIndex = 0;
             this.txtState.TabStop = false;
             this.txtState.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
@@ -70,7 +70,7 @@
             this.btnUnlock.Location = new System.Drawing.Point(64, 29);
             this.btnUnlock.Name = "btnUnlock";
             this.btnUnlock.Size = new System.Drawing.Size(55, 32);
-            this.btnUnlock.TabIndex = 41;
+            this.btnUnlock.TabIndex = 0;
             this.btnUnlock.TabStop = false;
             this.btnUnlock.Text = "Unlock";
             this.btnUnlock.UseVisualStyleBackColor = true;
@@ -80,7 +80,7 @@
             this.btnHome.Location = new System.Drawing.Point(3, 29);
             this.btnHome.Name = "btnHome";
             this.btnHome.Size = new System.Drawing.Size(55, 32);
-            this.btnHome.TabIndex = 40;
+            this.btnHome.TabIndex = 0;
             this.btnHome.TabStop = false;
             this.btnHome.Text = "Home";
             this.btnHome.UseVisualStyleBackColor = true;
@@ -93,7 +93,7 @@
             this.btnReset.Location = new System.Drawing.Point(125, 29);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(58, 32);
-            this.btnReset.TabIndex = 39;
+            this.btnReset.TabIndex = 0;
             this.btnReset.TabStop = false;
             this.btnReset.Text = "RESET";
             this.btnReset.UseVisualStyleBackColor = false;

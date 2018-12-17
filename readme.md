@@ -8,6 +8,29 @@ An application for configuring GRBL utilizing some of the controls is included a
 
 The data entry fields are dynamically created according to a config file and facilitates easy configuration of GRBL.
 
+#### Some examples of GCode senders built on top of the library:
+ 
+![Mill](media/mill.png)
+
+For plain 3-axis mill/router with grblHAL driver supporting manual tool change.
+<br><br>
+
+![Lathe](media/lathe.png)
+
+For lathe with grblHAL driver supporting spindle synced motion (driver is work in progress).
+<br><br>
+
+![5 Axes](media/5axes.png)
+
+For 5-axis configured grblHAL driver supporting SD card streaming.
+<br><br>
+
+![CO2 laser](media/laser.png)
+
+For custom driver and controller (not published) supporting CO2 laser engraving and cutting.
+
+---
+
 #### NOTE:
 
-I do not plan (for the time beeing) to release any of my GCode senders based on the controls libray. Currently I have made one for my CO2 laser and one for my mini mill/router - and I plan to add one for my lathe to complement the [MPG/DRO pendant](https://github.com/terjeio/GRBL_MPG_DRO_BoosterPack).
+I do not plan (for the time beeing) to release any of my GCode senders based on the controls libray. Currently I have made one for my CO2 laser, one for my mini mill/router and one for my lathe to complement the [MPG/DRO pendant](https://github.com/terjeio/GRBL_MPG_DRO_BoosterPack).

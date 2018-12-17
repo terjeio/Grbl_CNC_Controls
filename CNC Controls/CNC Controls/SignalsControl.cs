@@ -1,7 +1,7 @@
 ﻿/*
- * Interface.cs - part of CNC Controls library for Grbl
+ * SignalsControl.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * 2018-10-03 / Io Engineering (Terje Io)
  *
  */
 
@@ -39,27 +39,38 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
+using System.Data;
 using System.Linq;
 using System.Text;
+using System.Windows.Forms;
 
-namespace CNC_App
+namespace CNC_Controls
 {
-    public enum UIMode
+    public partial class SignalsControl : UserControl
     {
-        Startup = 0,
-        Shutdown,
-        Engraving,
-        Mach3,
-        GRBL,
-        GRBLConfig,
-        PIDTuner,
-        SDCard
-    }
+        Color LEDOn = Color.Red, LEDOff = Color.LightGray;
 
-    public interface IRenderer
-    {
-        UIMode mode { get; }
-        void Activate(bool activate, UIMode chgMode);
-        void CloseFile();
+        public SignalsControl()
+        {
+            InitializeComponent();
+            this.Config("XYZHSRDP");
+            this.Set("");
+        }
+
+        public void Config(string signals)
+        {
+            foreach (Control c in this.groupBox.Controls)
+                if(c.Tag != null)
+                    c.Visible = signals.Contains(((string)c.Tag)[0]);
+        }
+
+        public void Set (string signals)
+        {
+            foreach (Control c in this.groupBox.Controls)
+                if (c.GetType() == typeof(Button) && c.Visible)
+                    c.BackColor = signals.Contains(((string)c.Tag)[0]) ? LEDOn : LEDOff;
+        }
     }
 }

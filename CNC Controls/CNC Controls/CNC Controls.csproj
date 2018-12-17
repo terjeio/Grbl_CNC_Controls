@@ -75,11 +75,23 @@
     <Compile Include="DPIControl.designer.cs">
       <DependentUpon>DPIControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="DROBase.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="DROBase.Designer.cs">
+      <DependentUpon>DROBase.cs</DependentUpon>
+    </Compile>
     <Compile Include="DROControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="DROControl.designer.cs">
       <DependentUpon>DROControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FeedControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="FeedControl.Designer.cs">
+      <DependentUpon>FeedControl.cs</DependentUpon>
     </Compile>
     <Compile Include="FlowControl.cs">
       <SubType>UserControl</SubType>
@@ -114,6 +126,12 @@
     <Compile Include="MDIControl.designer.cs">
       <DependentUpon>MDIControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="OverrideControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="OverrideControl.Designer.cs">
+      <DependentUpon>OverrideControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="PIDTunerControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -133,6 +151,24 @@
       <DependentUpon>ProfileControl.cs</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SDCardControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="SDCardControl.Designer.cs">
+      <DependentUpon>SDCardControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SignalsControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="SignalsControl.Designer.cs">
+      <DependentUpon>SignalsControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SpindleControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="SpindleControl.Designer.cs">
+      <DependentUpon>SpindleControl.cs</DependentUpon>
+    </Compile>
     <Service Include="{94E38DFF-614B-4cbd-B67C-F211BB35CE8B}" />
   </ItemGroup>
   <ItemGroup>
@@ -142,8 +178,14 @@
     <EmbeddedResource Include="DPIControl.resx">
       <DependentUpon>DPIControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="DROBase.resx">
+      <DependentUpon>DROBase.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="DROControl.resx">
       <DependentUpon>DROControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FeedControl.resx">
+      <DependentUpon>FeedControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FlowControl.resx">
       <DependentUpon>FlowControl.cs</DependentUpon>
@@ -160,6 +202,9 @@
     <EmbeddedResource Include="MDIControl.resx">
       <DependentUpon>MDIControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="OverrideControl.resx">
+      <DependentUpon>OverrideControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="PIDTunerControl.resx">
       <DependentUpon>PIDTunerControl.cs</DependentUpon>
     </EmbeddedResource>
@@ -169,6 +214,26 @@
     <EmbeddedResource Include="ProfileControl.resx">
       <DependentUpon>ProfileControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="SDCardControl.resx">
+      <DependentUpon>SDCardControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SignalsControl.resx">
+      <DependentUpon>SignalsControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SpindleControl.resx">
+      <DependentUpon>SpindleControl.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <COMReference Include="SPortLib">
+      <Guid>{F8E4294A-18DF-4CB8-8967-ABE5FD4D18B3}</Guid>
+      <VersionMajor>4</VersionMajor>
+      <VersionMinor>0</VersionMinor>
+      <Lcid>0</Lcid>
+      <WrapperTool>tlbimp</WrapperTool>
+      <Isolated>False</Isolated>
+      <EmbedInteropTypes>True</EmbedInteropTypes>
+    </COMReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

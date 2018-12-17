@@ -53,12 +53,22 @@ namespace CNC_Controls
 {
     public partial class PIDTunerControl : UserControl, CNC_App.IRenderer
     {
+        private double errorScale = 2500.0;
+
         public PIDTunerControl()
         {
             InitializeComponent();
 
-            this.btnGetPIDData.Click += new EventHandler(btnGetPIDData_Click);
-            this.PIDPlot.Paint += new PaintEventHandler(PIDPlot_Paint);
+            btnGetPIDData.Click += new EventHandler(btnGetPIDData_Click);
+            PIDPlot.Paint += new PaintEventHandler(PIDPlot_Paint);
+            tbError.Value = (int)errorScale;
+            tbError.ValueChanged += new EventHandler(tbError_ValueChanged);
+        }
+
+        void tbError_ValueChanged(object sender, EventArgs e)
+        {
+            this.errorScale = tbError.Value;
+            PIDPlot.Refresh();
         }
 
         void PIDPlot_Paint(object sender, PaintEventArgs e)
@@ -94,7 +104,7 @@ namespace CNC_Controls
                     c.Y = d.Y;
                     d.X = (int)Math.Floor(Xpos);
 
-                    h.Y = center + (int)((double)sample["Error"] * 2500.0);
+                    h.Y = center + (int)((double)sample["Error"] * this.errorScale);
                     e.Graphics.DrawLine(ErrorPen, g, h);
                     g.X = h.X;
                     g.Y = h.Y;
@@ -108,8 +118,8 @@ namespace CNC_Controls
         {
             this.btnGetPIDData.Enabled = false;
             GrblPIDData.Load();
-            this.PIDPlot.Refresh();
-            this.btnGetPIDData.Enabled = true;
+            PIDPlot.Refresh();
+            btnGetPIDData.Enabled = true;
         }
 
         public CNC_App.UIMode mode { get { return CNC_App.UIMode.PIDTuner; } }
@@ -125,7 +135,6 @@ namespace CNC_Controls
 
     public static class GrblPIDData
     {
-
         public static DataTable data;
         private static string RawData;
 
@@ -160,9 +169,9 @@ namespace CNC_Controls
             Comms.com.DataReceived += new DataReceivedHandler(GrblPIDData.Process);
 
             Comms.com.PurgeQueue();
-            Comms.com.WriteCommand(GrblConstants.CMD_GETPIDDATA);
+            Comms.com.WriteCommand(((char)GrblConstants.CMD_PID_REPORT).ToString(CultureInfo.InvariantCulture));
 
-            while (Comms.com.CommandState != Comms.State.ACK)
+            while (Comms.com.CommandState == Comms.State.DataReceived || Comms.com.CommandState == Comms.State.AwaitAck)
                 Application.DoEvents();
 
             Comms.com.DataReceived -= GrblPIDData.Process;
@@ -191,30 +200,12 @@ namespace CNC_Controls
             }
         }
 
-        public static void Save()
-        {
-            DataTable Settings = GrblSettings.data.GetChanges();
-            if (Settings != null)
-            {
-                foreach (DataRow Setting in Settings.Rows)
-                {
-                    Comms.com.WriteCommand(string.Format("${0}={1}", (int)Setting["Id"], (string)Setting["Value"]));
-                    while (Comms.com.CommandState != Comms.State.ACK)
-                        Application.DoEvents();
-                }
-                GrblSettings.data.AcceptChanges();
-            }
-        }
-
         private static void Process(string data)
         {
             if (data.StartsWith("[PID:"))
             {
                 GrblPIDData.RawData = data.Substring(0, data.Length - 1).Substring(5);
-                Comms.com.CommandState = Comms.State.ACK;
             }
         }
-
     }
-
 }

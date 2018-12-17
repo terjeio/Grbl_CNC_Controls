@@ -1,7 +1,7 @@
 ﻿/*
  * DROControl.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2018-12-16 / Io Engineering (Terje Io)
  *
  */
 
@@ -52,12 +52,10 @@ namespace CNC_Controls
 
     public partial class DROControl : UserControl
     {
-        const int XAXIS = 0, YAXIS = 1, ZAXIS = 2, AAXIS = 3, BAXIS = 4, CAXIS = 5;
-
         private delegate void SetTextCallback(int axis, double value);
 
-        private AxisData[] axes = new AxisData[3];
-        private bool useMPos = false;
+        private AxisData[] axes = new AxisData[6];
+        private bool useMPos = false, hasFocus = false;
 
         public string DisplayFormat { get; private set; }
 
@@ -81,32 +79,42 @@ namespace CNC_Controls
 
                 switch (i)
                 {
-                    case XAXIS:
-                        axes[XAXIS].textBox = this.txtXPos;
-                        axes[XAXIS].btnZero = this.btnXZero;
+                    case GrblConstants.X_AXIS:
+                        axes[GrblConstants.X_AXIS].DRO = this.droX;
                         break;
-                    case YAXIS:
-                        axes[YAXIS].textBox = this.txtYPos;
-                        axes[YAXIS].btnZero = this.btnYZero;
+                    case GrblConstants.Y_AXIS:
+                        axes[GrblConstants.Y_AXIS].DRO = this.droY;
                         break;
-                    case ZAXIS:
-                        axes[ZAXIS].textBox = this.txtZPos;
-                        axes[ZAXIS].btnZero = this.btnZZero;
+                    case GrblConstants.Z_AXIS:
+                        axes[GrblConstants.Z_AXIS].DRO = this.droZ;
+                        break;
+                    case GrblConstants.A_AXIS:
+                        axes[GrblConstants.A_AXIS].DRO = this.droA;
+                        break;
+                    case GrblConstants.B_AXIS:
+                        axes[GrblConstants.B_AXIS].DRO = this.droB;
+                        break;
+                    case GrblConstants.C_AXIS:
+                        axes[GrblConstants.C_AXIS].DRO = this.droC;
                         break;
                 }
 
-                axes[i].textBox.GotFocus += new EventHandler(txtPos_GotFocus);
-                axes[i].textBox.LostFocus += new EventHandler(txtPos_LostFocus);
-                axes[i].textBox.KeyPress += new KeyPressEventHandler(txtPos_KeyPress);
-                axes[i].btnZero.Click += new EventHandler(btnZero_Click);
+                axes[i].DRO.Label = GrblInfo.AxisLetters.Substring(i, 1);
+                axes[i].visible = i < 3;
+                axes[i].DRO.Readout.GotFocus += new EventHandler(txtPos_GotFocus);
+                axes[i].DRO.Readout.LostFocus += new EventHandler(txtPos_LostFocus);
+                axes[i].DRO.Readout.KeyPress += new KeyPressEventHandler(txtPos_KeyPress);
+                axes[i].DRO.Zero.Click += new EventHandler(btnZero_Click);
 
                 setPos(i, 0.0);
             }
         }
 
+        public override bool Focused { get { return this.hasFocus; } }
+
         private int TagToAxisIndex(string tag)
         {
-            return "XYZABC".IndexOf(tag);
+            return GrblInfo.AxisLetters.IndexOf(tag);
         }
 
         private void txtPos_KeyPress(object sender, KeyPressEventArgs e)
@@ -144,6 +152,7 @@ namespace CNC_Controls
 
             axes[axis].updateDRO = true;
             setPos(axis, axes[axis].position);
+            this.hasFocus = false;
 
             if (DROEnabledChanged != null)
                 DROEnabledChanged(false);
@@ -152,6 +161,8 @@ namespace CNC_Controls
         void txtPos_GotFocus(object sender, EventArgs e)
         {
             ((TextBox)(sender)).ReadOnly = false;
+            this.hasFocus = true;
+
             if (DROEnabledChanged != null)
                 DROEnabledChanged(true);
         }
@@ -162,78 +173,114 @@ namespace CNC_Controls
                 AxisPositionChanged((string)((Button)sender).Tag, 0.0);
         }
 
+        public void setLatheMode()
+        {
+            if (axes[GrblConstants.Y_AXIS].visible)
+            {
+                int yOffset = axes[GrblConstants.Y_AXIS].DRO.Location.Y - axes[GrblConstants.X_AXIS].DRO.Location.Y;
+                axes[GrblConstants.Y_AXIS].visible = false;
+                axes[GrblConstants.Y_AXIS].DRO.Hide();
+                axes[GrblConstants.Z_AXIS].DRO.Location = axes[GrblConstants.Y_AXIS].DRO.Location;
+                btnZeroAll.Location = new Point(btnZeroAll.Location.X, btnZeroAll.Location.Y - yOffset);
+                grpDRO.Height -= yOffset;
+                this.Height -= yOffset;
+            }
+        }
+
+        public void setNumAxes(int numAxes)
+        {
+            if (numAxes <= 3 || numAxes > 6)
+                return;
+
+            int yOffset = 0, yDist = axes[GrblConstants.Y_AXIS].DRO.Location.Y - axes[GrblConstants.X_AXIS].DRO.Location.Y;
+
+            for (int axis = 3; axis < numAxes; axis++)
+            {
+                if (!axes[axis].visible)
+                {
+                    axes[axis].visible = true;
+                    axes[axis].DRO.Location = new Point(axes[axis].DRO.Location.X, axes[axis].DRO.Location.Y + yOffset);
+                    axes[axis].DRO.Show();
+                    yOffset += yDist;
+                }
+            }
+            this.Height += yOffset;
+            grpDRO.Height += yOffset;
+            btnZeroAll.Location = new Point(btnZeroAll.Location.X, btnZeroAll.Location.Y + yOffset);
+        }
+
         public void setPos(int axis, double value)
         {
-            if (axes[axis].updateDRO || value != axes[axis].position && axes[axis].textBox.ReadOnly)
+            if (axes[axis].visible && (axes[axis].updateDRO || value != axes[axis].position && axes[axis].DRO.Readout.ReadOnly))
             {
                 axes[axis].position = value;
-                if (axes[axis].textBox.InvokeRequired)
+                if (axes[axis].DRO.Readout.InvokeRequired)
                     this.Invoke(new SetTextCallback(setPos), new object[] { axis, value });
                 else
                 {
                     axes[axis].updateDRO = false;
-                    axes[axis].textBox.Text = (useMPos ? axes[axis].position - axes[axis].offset : axes[axis].position).ToString(this.DisplayFormat, CultureInfo.InvariantCulture);
+                    axes[axis].DRO.Value = (useMPos ? axes[axis].position - axes[axis].offset : axes[axis].position).ToString(this.DisplayFormat, CultureInfo.InvariantCulture);
                 }
             }
         }
 
-        private void setOffset(int axis, double offset)
+        public void setOffset(int axis, double offset)
         {
-            axes[axis].offset = offset;
-            axes[axis].updateDRO = true;
+            if (axes[axis].visible)
+            {
+                axes[axis].offset = offset;
+                axes[axis].updateDRO = true;
 
-            setPos(axis, axes[axis].position);
-        }
-
-        public double Xpos
-        {
-            get { return axes[XAXIS].position; }
-            set { setPos(XAXIS, value); }
-        }
-
-        public double Xoffset
-        {
-            get { return axes[XAXIS].offset; }
-            set { setOffset(XAXIS, value); }
-        }
-
-        public double Ypos
-        {
-            get { return axes[YAXIS].position; }
-            set { setPos(YAXIS, value); }
-        }
-
-        public double Yoffset
-        {
-            get { return axes[YAXIS].offset; }
-            set { setOffset(YAXIS, value); }
-        }
-
-        public double Zpos
-        {
-            get { return axes[ZAXIS].position; }
-            set { setPos(ZAXIS, value); }
-        }
-
-        public double Zoffset
-        {
-            get { return axes[ZAXIS].offset; }
-            set { setOffset(ZAXIS, value); }
+                setPos(axis, axes[axis].position);
+            }
         }
 
         public void Update(string position, bool IsMPos)
         {
             useMPos = IsMPos;
             string[] s = position.Split(',');
-            for(int i = 0; i < axes.Length; i++)
+            for(int i = 0; i < s.Length; i++)
                 setPos(i, double.Parse(s[i], CultureInfo.InvariantCulture));
         }
 
         public void UpdateOffsets(string offset)
         {
             string[] s = offset.Split(',');
-            for(int i = 0; i < axes.Length; i++)
+            for(int i = 0; i < s.Length; i++)
                 setOffset(i, double.Parse(s[i], CultureInfo.InvariantCulture));
+        }
+
+        private void setScaled(int scaled)
+        {
+            for (int i = 0; i < axes.Length; i++)
+            {
+                axes[i].DRO.Scaled = axes[i].scaled = (scaled & 0x01) == 1;
+                scaled >>= 1;
+            }
+        }
+
+        private void setScaled(string scaled)
+        {
+            foreach(AxisData axis in axes)
+                axis.scaled = false;
+
+            for (int i = 0; i < scaled.Length; i++)
+                axes[TagToAxisIndex(scaled.Substring(i, 1))].scaled = true;
+
+            foreach(AxisData axis in axes)
+                axis.DRO.Scaled = axis.scaled;
+        }
+
+        public void UpdateScaled(string scaled)
+        {
+            setScaled(scaled);
+            /*
+            string[] s = scaled.Split(',');
+            if (s.Length == 1)
+                setScaled(int.Parse(s[0], CultureInfo.InvariantCulture));
+            else for (int i = 0; i < axes.Length; i++)
+                setOffset(i, double.Parse(s[i], CultureInfo.InvariantCulture));
+             * */
         }
     }
 
@@ -241,8 +288,9 @@ namespace CNC_Controls
     {
         public double position = 0.0;
         public double offset = 0.0;
+        public bool visible = false;
+        public bool scaled = false;
         public bool updateDRO = false;
-        public TextBox textBox;
-        public Button btnZero;
+        public DROBase DRO;
     }
 }

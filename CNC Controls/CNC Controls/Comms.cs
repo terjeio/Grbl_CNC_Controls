@@ -1,7 +1,7 @@
 ﻿/*
  * Comms.cs - part of CNC Controls library
  *
- * 2018-09-23 / Io Engineering (Terje Io)
+ * 2018-12-10 / Io Engineering (Terje Io)
  *
  */
 
@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 //#define USEELTIMA
+//#define RESPONSELOG
 
 using System;
 using System.Collections.Generic;
@@ -51,7 +52,6 @@ using System.Net.Sockets;
 
 namespace CNC_Controls
 {
-
     public delegate void DataReceivedHandler (string data);
 
     public class Comms
@@ -63,6 +63,8 @@ namespace CNC_Controls
             ACK,
             NAK
         }
+
+        public const int TXBUFFERSIZE = 4096, RXBUFFERSIZE = 1024;
 
         public static StreamComms com = null;
     }
@@ -89,13 +91,12 @@ namespace CNC_Controls
 #if USEELTIMA
     public class SerialComms : StreamComms
     {
-        const int TXBUFFERSIZE = 4096, RXBUFFERSIZE = 1024;
 
         private SPortLib.SPortAx SerialPort;
-        private StringBuilder input = new StringBuilder(100);
-        public event DataReceivedHandler DataReceived;
-
+        private StringBuilder input = new StringBuilder(300);
         private volatile Comms.State state = Comms.State.ACK;
+
+        public event DataReceivedHandler DataReceived;
 
         public SerialComms (string PortParams)
         {
@@ -113,19 +114,26 @@ namespace CNC_Controls
             }
 
             this.SerialPort.InitString(PortParams.Substring(PortParams.IndexOf(":") + 1));
-            this.SerialPort.HandShake = 0x08;
+ //           this.SerialPort.HandShake = 0x08; // Cannot be used with ESP32
             this.SerialPort.FlowReplace = 0x80;
             this.SerialPort.CharEvent = 10;
-            this.SerialPort.InBufferSize = RXBUFFERSIZE;
-            this.SerialPort.OutBufferSize = TXBUFFERSIZE;
+            this.SerialPort.InBufferSize = Comms.RXBUFFERSIZE;
+            this.SerialPort.OutBufferSize = Comms.TXBUFFERSIZE;
             this.SerialPort.BlockMode = false;
 
-            this.SerialPort.OnRxFlag += new SPortLib._ISPortAxEvents_OnRxFlagEventHandler(this.SerialRead);
 
             this.SerialPort.Open(PortParams.Substring(0, PortParams.IndexOf(":")));
+            this.SerialPort.OnRxFlag += new SPortLib._ISPortAxEvents_OnRxFlagEventHandler(this.SerialRead);
+
+            System.Threading.Thread.Sleep(500);
 
             if (this.SerialPort.IsOpened)
             {
+                /* For resetting ESP32, use DTR for Arduino
+                this.SerialPort.RtsEnable = true;
+                this.SerialPort.RtsEnable = false;
+                System.Threading.Thread.Sleep(300);
+                */
                 this.SerialPort.PurgeQueue();
                 this.SerialPort.OnRxFlag += new SPortLib._ISPortAxEvents_OnRxFlagEventHandler(this.SerialRead);
             }
@@ -171,7 +179,7 @@ namespace CNC_Controls
         {
             this.state = Comms.State.AwaitAck;
 
-            if (command.Length > 1 || command == "%")
+            if (command.Length > 1 || command == GrblConstants.CMD_PROGRAM_DEMARCATION)
                 command += "\r";
 
             this.SerialPort.WriteStr(command);
@@ -200,7 +208,7 @@ namespace CNC_Controls
                 {
                     this.Reply = this.input.ToString(0, pos - 1);
                     this.input.Remove(0, pos + 1);
-                    this.state = this.Reply == "ok" ? State.ACK : (this.Reply == "FAILED" ? State.NAK : State.DataReceived);
+                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply.StartsWith("error") ? Comms.State.NAK : Comms.State.DataReceived);
                     if (this.Reply.Length != 0 && this.DataReceived != null)
                         this.DataReceived(this.Reply);
                 }
@@ -212,15 +220,16 @@ namespace CNC_Controls
 
     public class SerialComms : StreamComms
     {
-        const int TXBUFFERSIZE = 4096, RXBUFFERSIZE = 1024;
 
-        private SerialPort SerialPort;
-        private StringBuilder input = new StringBuilder(100);
+        private SerialPort SerialPort = null;
+        private StringBuilder input = new StringBuilder(400);
+        private volatile Comms.State state = Comms.State.ACK;
 
-        //     public delegate void DataReceivedHandler (string data);
         public event DataReceivedHandler DataReceived;
 
-        private volatile Comms.State state = Comms.State.ACK;
+#if RESPONSELOG
+        StreamWriter log = null;
+#endif
 
         public SerialComms(string PortParams)
         {
@@ -241,12 +250,14 @@ namespace CNC_Controls
             this.SerialPort.Parity = ParseParity(parameter[1]);
             this.SerialPort.DataBits = int.Parse(parameter[2]);
             this.SerialPort.StopBits = int.Parse(parameter[3]) == 1 ? StopBits.One : StopBits.Two;
-            if (parameter.Count() > 4)
-                this.SerialPort.Handshake = parameter[4] == "X" ? Handshake.XOnXOff : Handshake.RequestToSend;
+//            if (parameter.Count() > 4) // Cannot be used With ESP32
+//                this.SerialPort.Handshake = parameter[4] == "X" ? Handshake.XOnXOff : Handshake.RequestToSend; 
+            this.SerialPort.Handshake = Handshake.None;
             this.SerialPort.ReceivedBytesThreshold = 1;
+            this.SerialPort.ReadTimeout = 5000;
             this.SerialPort.NewLine = "\r\n";
-            this.SerialPort.ReadBufferSize = RXBUFFERSIZE;
-            this.SerialPort.WriteBufferSize = TXBUFFERSIZE;
+            this.SerialPort.ReadBufferSize = Comms.RXBUFFERSIZE;
+            this.SerialPort.WriteBufferSize = Comms.TXBUFFERSIZE;
 
             try
             {
@@ -258,19 +269,30 @@ namespace CNC_Controls
 
             if (this.SerialPort.IsOpen)
             {
+                /* For resetting ESP32, use DTR for Arduino */    
+                this.SerialPort.RtsEnable = true;
+                this.SerialPort.RtsEnable = false;
+                           System.Threading.Thread.Sleep(2000);
+
                 this.PurgeQueue();
                 this.SerialPort.DataReceived += new SerialDataReceivedEventHandler(SerialPort_DataReceived);
+#if RESPONSELOG
+                this.log = new StreamWriter(@"D:\grbl.txt");
+#endif
             }
         }
 
         ~SerialComms()
         {
+#if RESPONSELOG
+            this.log.Close();
+#endif
             this.Close();
         }
 
         public Comms.State CommandState { get { return this.state; } set { this.state = value; } }
         public string Reply { get; private set; }
-        public bool IsOpen { get { return this.SerialPort.IsOpen; } }
+        public bool IsOpen { get { return this.SerialPort != null && this.SerialPort.IsOpen; } }
         public int OutCount { get { return this.SerialPort.BytesToWrite; } }
 
         public void PurgeQueue()
@@ -309,7 +331,20 @@ namespace CNC_Controls
         public void Close()
         {
             if (this.IsOpen)
-                this.SerialPort.Close();
+            {
+                try
+                {
+                    this.SerialPort.DataReceived -= SerialPort_DataReceived;
+                    this.SerialPort.DtrEnable = false;
+                    this.SerialPort.RtsEnable = false;
+                    this.SerialPort.DiscardInBuffer();
+                    this.SerialPort.DiscardOutBuffer();
+                    System.Threading.Thread.Sleep(100);
+                    this.SerialPort.Close();
+                    this.SerialPort = null;
+                }
+                catch { }
+            }
         }
 
         public void WriteByte(byte data)
@@ -331,7 +366,7 @@ namespace CNC_Controls
         {
             this.state = Comms.State.AwaitAck;
 
-            if (command.Length > 1 || command == "%")
+            if (command.Length > 1 || command == GrblConstants.CMD_PROGRAM_DEMARCATION)
                 command += "\r";
 
             this.SerialPort.Write(command);
@@ -360,7 +395,10 @@ namespace CNC_Controls
                 {
                     this.Reply = this.input.ToString(0, pos - 1);
                     this.input.Remove(0, pos + 1);
-                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply == "FAILED" ? Comms.State.NAK : Comms.State.DataReceived);
+#if RESPONSELOG
+                    this.log.WriteLine(this.Reply);
+#endif
+                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply.StartsWith("error") ? Comms.State.NAK : Comms.State.DataReceived);
                     if (this.Reply.Length != 0 && this.DataReceived != null)
                         this.DataReceived(this.Reply);
                 }
@@ -375,7 +413,7 @@ namespace CNC_Controls
         private NetworkStream ipstream = null;
         private byte[] buffer = new byte[512];
         private volatile Comms.State state = Comms.State.ACK;
-        private StringBuilder input = new StringBuilder(100);
+        private StringBuilder input = new StringBuilder(300);
 
         public event DataReceivedHandler DataReceived;
 
@@ -409,13 +447,19 @@ namespace CNC_Controls
 
         public void PurgeQueue()
         {
+            while(this.ipstream.DataAvailable)
+                this.ipstream.ReadByte();
             this.Reply = "";
         }
 
         public void Close()
         {
             if (this.IsOpen)
+            {
+                this.ipstream.Close(300);
+                this.ipstream = null;
                 this.ipserver.Close();
+            }
         }
 
         public void WriteByte(byte data)
@@ -430,7 +474,7 @@ namespace CNC_Controls
 
         public void WriteString(string data)
         {
-            byte[] bytes = ASCIIEncoding.ASCII.GetBytes(data);
+            byte[] bytes = Encoding.Default.GetBytes(data);
             this.ipstream.Write(bytes, 0, bytes.Length);
         }
 
@@ -438,7 +482,7 @@ namespace CNC_Controls
         {
             this.state = Comms.State.AwaitAck;
 
-            if (command.Length > 1 || command == "%")
+            if (command.Length > 1 || command == GrblConstants.CMD_PROGRAM_DEMARCATION)
                 command += "\r";
 
             WriteString(command);
@@ -462,7 +506,7 @@ namespace CNC_Controls
 
             try
             {
-                bytesAvailable = ipstream.EndRead(iar);
+                bytesAvailable = this.ipstream.EndRead(iar);
             }
             catch
             {
@@ -479,13 +523,14 @@ namespace CNC_Controls
                 {
                     this.Reply = this.input.ToString(0, pos - 1);
                     this.input.Remove(0, pos + 1);
-                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply == "FAILED" ? Comms.State.NAK : Comms.State.DataReceived);
+                    this.state = this.Reply == "ok" ? Comms.State.ACK : (this.Reply.StartsWith("error") ? Comms.State.NAK : Comms.State.DataReceived);
                     if (this.Reply.Length != 0 && this.DataReceived != null)
                         this.DataReceived(this.Reply);
-                }
+               }
             }
 
-            ipstream.BeginRead(this.buffer, 0, buffer.Length, ReadComplete, this.buffer);
+            if(this.ipstream != null)
+                this.ipstream.BeginRead(this.buffer, 0, buffer.Length, ReadComplete, this.buffer);
         }
     }
 }

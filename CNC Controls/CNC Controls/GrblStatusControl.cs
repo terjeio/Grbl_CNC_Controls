@@ -50,7 +50,6 @@ namespace CNC_Controls
 {
     public partial class GrblStatusControl : UserControl
     {
-
         private delegate void SetTextCallback(string text, Color color);
 
         public GCodeJob GCodeSender;
@@ -64,6 +63,8 @@ namespace CNC_Controls
             this.btnUnlock.Click += new EventHandler(btnUnlock_Click);
             this.chkCheckMode.CheckedChanged += new EventHandler(chkCheckMode_CheckedChanged);
         }
+
+        public bool HomingEnabled { get; set; }
 
         void chkCheckMode_CheckedChanged(object sender, EventArgs e)
         {
@@ -90,7 +91,7 @@ namespace CNC_Controls
 
         public void Enable(bool enable)
         {
-            this.btnHome.Enabled = enable;
+            this.btnHome.Enabled = enable && HomingEnabled;
         }
 
         public void CheckModeEnable(bool enable)
@@ -100,7 +101,7 @@ namespace CNC_Controls
 
         public void setCheckMode(bool check)
         {
-            if (chkCheckMode.Checked != check && GCodeSender.streamingState == StreamingState.Idle)
+            if (chkCheckMode.Checked != check && GCodeSender.StreamingState == StreamingState.Idle)
                 chkCheckMode.Checked = check;
         }
 

@@ -1,7 +1,7 @@
 ﻿/*
  * GCodeJob.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2018-12-16 / Io Engineering (Terje Io)
  *
  */
 
@@ -47,6 +47,7 @@ using System.Text;
 using System.Windows.Forms;
 using System.Threading;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace CNC_Controls
 {
@@ -56,9 +57,20 @@ namespace CNC_Controls
             WM_KEYDOWN = 0x0100,
             WM_KEYUP = 0x0101;
 
+        private enum JogMode
+        {
+            Step = 0,
+            Slow,
+            Fast,
+            None // must be last!
+        }
+
         private volatile int serialUsed = 0;
-        private volatile int[] axisjog = new int[3] { 0, 0, 0 };
-        private volatile StreamingState State = StreamingState.NoFile;
+        private JogMode jogMode = JogMode.None;
+        private volatile Keys[] axisjog = new Keys[3] { Keys.None, Keys.None, Keys.None };
+        private double[] jogDistance = new double[3] { 0.05, 500.0, 500.0};
+        private double[] jogSpeed = new double[3] { 100.0, 200.0, 500.0 };
+        private volatile StreamingState streamingState = StreamingState.NoFile;
         private GrblState grblState;
         private GrblStatusParameters parameters = new GrblStatusParameters();
         private GCode file = new GCode();
@@ -67,7 +79,6 @@ namespace CNC_Controls
         private bool initOK = false, pgmStarted = false, pgmComplete = false;
         private PollGrbl poller = null;
         private Thread polling = null;
-        private Stopwatch stopWatch = new Stopwatch();
         private DataRow currentRow = null, nextRow = null;
 
         private delegate void GcodeCallback(string data);
@@ -103,146 +114,218 @@ namespace CNC_Controls
             this.poller = new PollGrbl();
             this.polling = new Thread(new ThreadStart(poller.run));
             polling.Start();
-            while (!polling.IsAlive) ;
+            while (!polling.IsAlive);
         }
 
         public GrblStates state { get { return grblState.State; } } 
 
         public GCode gcode { get { return file; } }
         
-        public StreamingState streamingState { get { return State; } }
+        public StreamingState StreamingState { get { return streamingState; } }
 
         public bool canJog { get { return grblState.State == GrblStates.Idle || grblState.State == GrblStates.Tool || grblState.State == GrblStates.Jog; } }
 
-        public string runTime
+        public bool JobPending { get { return this.file.Loaded && !JobTimer.IsRunning; } }
+
+        // Configure to match Grbl settings (if loaded)
+        public bool Config ()
         {
-            get
+            if (GrblSettings.Loaded)
             {
-                return String.Format("{0:00}:{1:00}:{2:00}",
-                                       this.stopWatch.Elapsed.Hours, this.stopWatch.Elapsed.Minutes, this.stopWatch.Elapsed.Seconds);
+                double val;
+                if (!(val = GrblSettings.GetDouble(GrblSetting.JogStepDistance)).Equals(double.NaN))
+                    jogDistance[(int)JogMode.Step] = val;
+                if (!(val = GrblSettings.GetDouble(GrblSetting.JogSlowDistance)).Equals(double.NaN))
+                    jogDistance[(int)JogMode.Slow] = val;
+                if (!(val = GrblSettings.GetDouble(GrblSetting.JogFastDistance)).Equals(double.NaN))
+                    jogDistance[(int)JogMode.Fast] = val;
+                if (!(val = GrblSettings.GetDouble(GrblSetting.JogStepSpeed)).Equals(double.NaN))
+                    jogSpeed[(int)JogMode.Step] = val;
+                if (!(val = GrblSettings.GetDouble(GrblSetting.JogSlowSpeed)).Equals(double.NaN))
+                    jogSpeed[(int)JogMode.Slow] = val;
+                if (!(val = GrblSettings.GetDouble(GrblSetting.JogFastSpeed)).Equals(double.NaN))
+                    jogSpeed[(int)JogMode.Fast] = val;
             }
+
+            return GrblSettings.Loaded;
         }
 
         #region UIevents
 
-        public bool ProcessKeyJogging (ref Message msg)
+        public bool ProcessKeypress (ref Message msg)
         {
-            bool jog = false, cancel = false;
-            int keycode = msg.WParam.ToInt32();
+            Keys keycode = (Keys)msg.WParam.ToInt32();
             string command = "";
 
-            if (this.streamingState == StreamingState.Jogging && msg.Msg == WM_KEYUP)
+            if (keycode == Keys.Space && this.grblState.State != GrblStates.Idle)
             {
+                SendRTCommand(GrblConstants.CMD_FEED_HOLD);
+                return true;
+            }
+
+            if (Control.ModifierKeys == Keys.Alt)
+            {
+                if (keycode == Keys.S)
+                {
+                    SetStreamingState(StreamingState.Stop);
+                    return true;
+                }
+
+                if (keycode == Keys.R)
+                {
+                    this.CycleStart();
+                    return true;
+                }
+            }
+
+            bool isJogging = this.jogMode != JogMode.None;
+
+            if (msg.Msg == WM_KEYUP && (isJogging || this.grblState.State == GrblStates.Jog))
+            {
+                bool cancel = false;
+                
+                isJogging = false;
+
                 for (int i = 0; i < 3; i++)
                 {
                     if (axisjog[i] == keycode)
                     {
-                        axisjog[i] = 0;
+                        axisjog[i] = Keys.None;
                         cancel = true;
                     }
                     else
-                        jog = jog || axisjog[i] != 0;
+                        isJogging = isJogging || (axisjog[i] != Keys.None);
                 }
 
-                if (cancel && !jog)
+                if (cancel && !isJogging && this.jogMode != JogMode.Step)
                     this.JogCancel();
-
-                jog = jog & cancel;
             }
 
-            if (Comms.com.OutCount != 0)
+            if (!isJogging && Comms.com.OutCount != 0)
                 return true;
+
+//            if ((keycode == Keys.ShiftKey || keycode == Keys.ControlKey) && !this.isJogging)
+//                return false;
 
             if (msg.Msg == WM_KEYDOWN && this.canJog)
             {
+                // Do not respond to autorepeats!
+                if ((msg.LParam.ToInt32() & (1 << 30)) != 0)
+                    return true;
+
                 switch (keycode)
                 {
-                    case 33: // Keys.PgUp
-                        jog = axisjog[2] != 33;
-                        axisjog[2] = 33;
+                    case Keys.PageUp:
+                        isJogging = axisjog[2] != Keys.PageUp;
+                        axisjog[2] = Keys.PageUp;
                         break;
 
-                    case 34: // Keys.PgDown
-                        jog = axisjog[2] != 34;
-                        axisjog[2] = 34;
+                    case Keys.PageDown:
+                        isJogging = axisjog[2] != Keys.PageDown;
+                        axisjog[2] = Keys.PageDown;
                         break;
 
-                    case 37: // Keys.Left
-                        jog = axisjog[0] != 37;
-                        axisjog[0] = 37;
+                    case Keys.Left:
+                        isJogging = axisjog[0] != Keys.Left;
+                        axisjog[0] = Keys.Left;
                         break;
 
-                    case 38: // Keys.Up
-                        jog = axisjog[1] != 38;
-                        axisjog[1] = 38;
+                    case Keys.Up:
+                        isJogging = axisjog[1] != Keys.Up;
+                        axisjog[1] = Keys.Up;
                         break;
 
-                    case 39: // Keys.Right
-                        jog = axisjog[0] != 39;
-                        axisjog[0] = 39;
+                    case Keys.Right:
+                        isJogging = axisjog[0] != Keys.Right;
+                        axisjog[0] = Keys.Right;
                         break;
 
-                    case 40: // Keys.Down
-                        jog = axisjog[1] != 40;
-                        axisjog[1] = 40;
+                    case Keys.Down:
+                        isJogging = axisjog[1] != Keys.Down;
+                        axisjog[1] = Keys.Down;
                         break;
                 }
             }
 
-            if (jog)
+            if (isJogging)
             {
-                for (int i = 0; i < 3; i++) switch (axisjog[i])
+                if (GrblInfo.LatheMode)
                 {
-                    case 33: // Keys.PgUp
-                        command += "Z{0}";
-                        break;
+                    for (int i = 0; i < 2; i++) switch (axisjog[i])
+                        {
+                            case Keys.Left:
+                                command += "Z-{0}";
+                                break;
 
-                    case 34: // Keys.PgDown
-                        command += "Z-{0}";
-                        break;
+                            case Keys.Up:
+                                command += "X-{0}";
+                                break;
 
-                    case 37: // Keys.Left
-                        command += "X-{0}";
-                        break;
+                            case Keys.Right:
+                                command += "Z{0}";
+                                break;
 
-                    case 38: // Keys.Up
-                        command += "Y{0}";
-                        break;
+                            case Keys.Down:
+                                command += "X{0}";
+                                break;
+                        }
+                }
+                else
+                {
+                    for (int i = 0; i < 3; i++) switch (axisjog[i])
+                        {
+                            case Keys.PageUp:
+                                command += "Z{0}";
+                                break;
 
-                    case 39: // Keys.Right
-                        command += "X{0}";
-                        break;
+                            case Keys.PageDown:
+                                command += "Z-{0}";
+                                break;
 
-                    case 40: // Keys.Down
-                        command += "Y-{0}";
-                        break;
+                            case Keys.Left:
+                                command += "X-{0}";
+                                break;
+
+                            case Keys.Up:
+                                command += "Y{0}";
+                                break;
+
+                            case Keys.Right:
+                                command += "X{0}";
+                                break;
+
+                            case Keys.Down:
+                                command += "Y-{0}";
+                                break;
+                        }
                 }
 
-                if (command != "")
+                if ((isJogging = command != ""))
                 {
-                    if ((Control.ModifierKeys & Keys.Shift) == Keys.Shift)
-                        command = string.Format(command, "500") + "F1500";
-                    else if ((Control.ModifierKeys & Keys.Control) == Keys.Control)
-                        command = string.Format(command, "0.05") + "F100";
+                    if ((Control.ModifierKeys & Keys.Control) == Keys.Control)
+                        this.jogMode = JogMode.Step;
+                    else if ((Control.ModifierKeys & Keys.Shift) == Keys.Shift)
+                        this.jogMode = JogMode.Fast;
                     else
-                        command = string.Format(command, "500") + "F200";
+                        this.jogMode = JogMode.Slow;
 
-                    this.SendJogCommand("$J=G91" + command);
+                    this.SendJogCommand("$J=G91" + string.Format(command + "F{1}",
+                                                    jogDistance[(int)this.jogMode].ToString(CultureInfo.InvariantCulture),
+                                                     jogSpeed[(int)this.jogMode].ToString(CultureInfo.InvariantCulture)));
                 }
             }
 
-            return command != "" || this.streamingState == StreamingState.Jogging;
+            return isJogging;
         }
 
         void btnRewind_Click(object sender, EventArgs e)
         {
              RewindFile();
-             SetStreamingState(this.State);
+             SetStreamingState(this.streamingState);
         }
 
         void btnHold_Click(object sender, EventArgs e)
         {
-            SetStreamingState(StreamingState.FeedHold);
             SendRTCommand(GrblConstants.CMD_FEED_HOLD);
         }
 
@@ -253,25 +336,12 @@ namespace CNC_Controls
 
         void btnStart_Click(object sender, EventArgs e)
         {
-            if (this.State == StreamingState.FeedHold)
-                SendRTCommand(GrblConstants.CMD_CYCLE_START);
-            else
-            {
-                txtRunTime.Text = "";
-                serialUsed = 0;
-                this.pgmStarted = false;
-                Comms.com.PurgeQueue();
-                this.nextRow = file.Data.Rows[0];
-                this.stopWatch.Reset();
-                this.stopWatch.Start();
-            }
-            SetStreamingState(StreamingState.Send);
-            this.DataReceived("ok");
+            this.CycleStart();
         }
 
         void UserUI_DragEnter(object sender, DragEventArgs e)
         {
-            bool allow = this.State == StreamingState.Idle || this.State == StreamingState.NoFile;
+            bool allow = this.streamingState == StreamingState.Idle || this.streamingState == StreamingState.NoFile;
 
             if (allow && e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -288,12 +358,9 @@ namespace CNC_Controls
 
             if (files.Count() == 1)
             {
-
                 Cursor.Current = Cursors.WaitCursor;
 
                 this.file.LoadFile(files[0]);
-
-       //         CNC_App.UserUI.ui.WindowTitle = this.file.filename;
 
           //      this.ppiControl.Speed = this.file.max_feed;
 
@@ -305,7 +372,7 @@ namespace CNC_Controls
                 this.PendingLine = 0;
                 this.PgmEndLine = this.file.Data.Rows.Count - 1;
 
-                SetStreamingState(file.Data.Rows.Count > 0 ? StreamingState.Idle : StreamingState.NoFile);
+                SetStreamingState(file.Loaded ? StreamingState.Idle : StreamingState.NoFile);
 
                 Cursor.Current = Cursors.Default;
             }
@@ -316,7 +383,6 @@ namespace CNC_Controls
         public void CloseFile()
         {
             this.file.CloseFile();
-   //         CNC_App.UserUI.ui.WindowTitle = this.file.filename;
         }
 
         public void Activate(bool activate)
@@ -329,13 +395,32 @@ namespace CNC_Controls
                     serialSize = Math.Min(300, (int)(GrblInfo.SerialBufferSize * 0.9f)); // size should be less than hardware handshake HWM
                 }
                 Comms.com.DataReceived += new DataReceivedHandler(DataReceived);
-     //           CNC_App.UserUI.ui.WindowTitle = this.file.filename;
                 poller.SetState(this.PollInterval);
             }
             else
             {
                 poller.SetState(0);
                 Comms.com.DataReceived -= DataReceived;
+            }
+        }
+
+        public void CycleStart()
+        {
+            if (this.grblState.State == GrblStates.Hold || this.grblState.State == GrblStates.Tool)
+                SendRTCommand(GrblConstants.CMD_CYCLE_START);
+            else if (this.file.Loaded)
+            {
+                txtRunTime.Text = "";
+                this.ACKPending = this.CurrLine = this.serialUsed = 0;
+                this.pgmStarted = false;
+                System.Threading.Thread.Sleep(250);
+                Comms.com.PurgeQueue();
+                if (GrblMessage != null)
+                    GrblMessage("");
+                this.nextRow = file.Data.Rows[0];
+                JobTimer.Start();
+                SetStreamingState(StreamingState.Send);
+                //         this.DataReceived("!start");
             }
         }
 
@@ -348,24 +433,28 @@ namespace CNC_Controls
 
         public void JogCancel ()
         {
-            this.State = StreamingState.Idle;
+            this.streamingState = StreamingState.Idle;
             while (Comms.com.OutCount != 0)
                 Application.DoEvents(); //??
             Comms.com.WriteByte((byte)GrblConstants.CMD_JOG_CANCEL); // Cancel jog
+            this.jogMode = JogMode.None;
         }
 
         public void SendJogCommand(string command)
         {
-            if (this.State == StreamingState.Jogging)
+            if (this.streamingState == StreamingState.Jogging || this.grblState.State == GrblStates.Jog)
+            {
+                while (Comms.com.OutCount != 0)
+                    Application.DoEvents(); //??
                 Comms.com.WriteByte((byte)GrblConstants.CMD_JOG_CANCEL); // Cancel current jog
-            else
-                this.State = StreamingState.Jogging;
+            }
+            this.streamingState = StreamingState.Jogging;
             Comms.com.WriteCommand(command);
         }
 
         public void SendRTCommand(string command)
         {
-            Comms.com.WriteByte(Encoding.Default.GetBytes(command)[0]);
+            Comms.com.WriteByte((byte)command[0]);
         }
 
         public void SendMDICommand(string command)
@@ -375,15 +464,21 @@ namespace CNC_Controls
 
             if (command.Length == 1)
                 SendRTCommand(command);
-            else if (this.State == StreamingState.Idle || this.State == StreamingState.NoFile || command == GrblConstants.CMD_UNLOCK)
+            else if (this.streamingState == StreamingState.Idle || this.streamingState == StreamingState.NoFile || this.streamingState == StreamingState.ToolChange || command == GrblConstants.CMD_UNLOCK)
             {
-                command = command.ToUpper();
-                file.commands.Enqueue(command);
-                file.ParseBlock(command + "\r", false);
-                if (this.State != StreamingState.SendMDI)
+//                command = command.ToUpper();
+                try
                 {
-                    this.State = StreamingState.SendMDI;
-                    this.DataReceived("ok");
+                    file.ParseBlock(command + "\r", false);
+                    file.commands.Enqueue(command);
+                    if (this.streamingState != StreamingState.SendMDI)
+                    {
+                        this.streamingState = StreamingState.SendMDI;
+                        this.DataReceived("ok");
+                    }
+                }
+                catch
+                {
                 }
             }
         }
@@ -392,7 +487,7 @@ namespace CNC_Controls
         {
             this.pgmComplete = false;
 
-            if (this.file.Open)
+            if (this.file.Loaded)
             {
                 this.GCodeView.DataSource = null;
 
@@ -403,8 +498,7 @@ namespace CNC_Controls
                 this.GCodeView.FirstDisplayedScrollingRowIndex = 0;
                 this.GCodeView.Refresh();
 
-                this.CurrLine = 0;
-                this.PendingLine = 0;
+                this.CurrLine = this.PendingLine = 0;
                 this.PgmEndLine = this.file.Data.Rows.Count - 1;
 
                 SetStreamingState(StreamingState.Idle);
@@ -422,9 +516,10 @@ namespace CNC_Controls
                 case StreamingState.Idle:
                 case StreamingState.NoFile:
                     this.Enabled = true;
-                    this.btnStart.Enabled = file.Open;
+                    this.btnStart.Enabled = file.Loaded;
                     this.btnStop.Enabled = false;
-                    this.btnRewind.Enabled = file.Open && this.CurrLine != 0;
+                    this.btnHold.Enabled = true;
+                    this.btnRewind.Enabled = file.Loaded && this.CurrLine != 0;
                     break;
 
                 case StreamingState.Send:
@@ -432,7 +527,8 @@ namespace CNC_Controls
                     this.btnHold.Enabled = true;
                     this.btnStop.Enabled = true;
                     this.btnRewind.Enabled = false;
-                    SendNextLine();
+                    if (file.Loaded)
+                        SendNextLine();
                     break;
 
                 case StreamingState.Halted:
@@ -446,18 +542,25 @@ namespace CNC_Controls
                     this.btnHold.Enabled = false;
                     break;
 
+                case StreamingState.ToolChange:
+                    this.btnStart.Enabled = true;
+                    this.btnHold.Enabled = false;
+                    break;
+
                 case StreamingState.Stop:
                     this.btnStart.Enabled = false;
                     this.btnStop.Enabled = false;
                     this.btnRewind.Enabled = true;
                     Comms.com.WriteByte((byte)GrblConstants.CMD_STOP);
+                    if (JobTimer.IsRunning)
+                        JobTimer.Stop();
                     break;
             }
 
-            this.State = newState;
+            this.streamingState = newState;
 
             if (StreamingStateChanged != null)
-                StreamingStateChanged(this.State);
+                StreamingStateChanged(this.streamingState);
         }
 
         void SetGRBLState(string newState, int substate)
@@ -468,22 +571,26 @@ namespace CNC_Controls
             {
                 switch (newstate)
                 {
-
                     case GrblStates.Idle:
                         this.grblState.Color = Color.White;
                         if (this.pgmComplete)
                         {
-                            this.stopWatch.Stop();
-                            txtRunTime.Text = this.runTime;
+                            JobTimer.Stop();
+                            this.txtRunTime.Text = JobTimer.RunTime;
                             RewindFile();
-                            SetStreamingState(StreamingState.Idle);
                         }
+                        if (JobTimer.IsRunning)
+                            JobTimer.Pause = true;
+                        else
+                            SetStreamingState(StreamingState.Idle);
                         break;
 
                     case GrblStates.Run:
+                        if (JobTimer.IsPaused)
+                            JobTimer.Pause = false;
                         this.grblState.Color = Color.LightGreen;
-                        if (this.grblState.State == GrblStates.Hold || this.grblState.State == GrblStates.Door)
-                            SetStreamingState(StreamingState.Send);
+        //                if (this.grblState.State == GrblStates.Hold || this.grblState.State == GrblStates.Door || this.grblState.State == GrblStates.Tool)
+                        SetStreamingState(StreamingState.Send);
                         break;
 
                     case GrblStates.Alarm:
@@ -495,6 +602,11 @@ namespace CNC_Controls
                         break;
 
                     case GrblStates.Tool:
+                        this.grblState.Color = Color.LightSalmon;
+                        SetStreamingState(StreamingState.ToolChange);
+                        Comms.com.WriteByte((byte)GrblConstants.CMD_TOOL_ACK);
+                        break;
+
                     case GrblStates.Hold:
                         this.grblState.Color = Color.LightSalmon;
                         SetStreamingState(StreamingState.FeedHold);
@@ -504,7 +616,7 @@ namespace CNC_Controls
                         if (substate > 0)
                         {
                             this.grblState.Color = grblState.Substate == 1 ? Color.Red : Color.LightSalmon;
-                            if (this.State == StreamingState.Send)
+                            if (this.streamingState == StreamingState.Send)
                                 SetStreamingState(StreamingState.FeedHold);
                         }
                         break;
@@ -531,15 +643,14 @@ namespace CNC_Controls
                 else
                 {
                     currentRow = nextRow;
-                    string line = (string)currentRow["Data"];
-                    line = line.Replace(" ", "");
+                    string line = file.StripSpaces((string)currentRow["Data"]);
                     currentRow["Sent"] = "*";
                     if (line == "%")
                     {
                         if (!(this.pgmStarted = !this.pgmStarted))
                             this.PgmEndLine = this.CurrLine;
                     }
-                    else if (line.ToUpper() == "M30")
+                    else if ((bool)currentRow["ProgramEnd"])
                         this.PgmEndLine = this.CurrLine;
                     nextRow = this.PgmEndLine == this.CurrLine ? null : file.Data.Rows[++this.CurrLine];
                     //            ParseBlock(line + "\r");
@@ -556,7 +667,7 @@ namespace CNC_Controls
                 return;
 
             if (this.GCodeView.InvokeRequired)
-                this.Invoke(new GcodeCallback(DataReceived), new object[] { data });
+                this.BeginInvoke(new GcodeCallback(DataReceived), new object[] { data });
 
             else if (data.Substring(0, 1) == "<")
             {
@@ -582,31 +693,44 @@ namespace CNC_Controls
                             GrblParameterChanged(pair[0], pair[1]);
                     }
                 }
+
+                if (JobTimer.IsRunning && !JobTimer.IsPaused)
+                    this.txtRunTime.Text = JobTimer.RunTime;
             }
             else if (data.StartsWith("ALARM"))
             {
                 SetGRBLState("Alarm", -1);
             }
+            else if (data.StartsWith("[GC:"))
+            {
+                GrblParserState.Process(data);
+            }
             else if (data.StartsWith("["))
             {
+                if (!this.file.Loaded && data == "[MSG:Pgm End]")
+                    SetStreamingState(StreamingState.NoFile);
+
                 if (GrblMessage != null)
                     GrblMessage(data);
             }
-            else if (this.State != StreamingState.Jogging)
+            else if (this.streamingState != StreamingState.Jogging)
             {
                 if (data != "ok" && GrblMessage != null)
                     GrblMessage(data.StartsWith("error:") ? GrblErrors.GetMessage(data.Substring(6)) : data);
 
-                if (this.ACKPending > 0)
+                if (this.ACKPending > 0 && this.streamingState == StreamingState.Send)
                 {
                     this.ACKPending--;
-                    this.serialUsed -= (int)file.Data.Rows[this.PendingLine]["Length"];
+                    if ((string)file.Data.Rows[this.PendingLine]["Sent"] == "*")
+                        this.serialUsed -= (int)file.Data.Rows[this.PendingLine]["Length"];
+                    if (this.serialUsed < 0)
+                        this.serialUsed = 0;
                     file.Data.Rows[this.PendingLine]["Sent"] = data;
 
                     if (this.PendingLine > 5)
                         this.GCodeView.FirstDisplayedScrollingRowIndex = this.PendingLine - 5;
 
-                    if (this.State == StreamingState.Send)
+                    if (this.streamingState == StreamingState.Send)
                     {
                         if (data.StartsWith("error"))
                             SetStreamingState(StreamingState.Halted);
@@ -618,7 +742,7 @@ namespace CNC_Controls
                     this.PendingLine++;
                 }
 
-                switch (this.State)
+                switch (this.streamingState)
                 {
                     case StreamingState.Send:
                         SendNextLine();
@@ -628,16 +752,16 @@ namespace CNC_Controls
                         if (file.commands.Count > 0)
                             Comms.com.WriteCommand(file.commands.Dequeue());
                         if (file.commands.Count == 0)
-                            this.State = StreamingState.Idle;
+                            this.streamingState = StreamingState.Idle;
                         break;
 
                     case StreamingState.Reset:
                         Comms.com.WriteCommand(GrblConstants.CMD_UNLOCK);
-                        this.State = StreamingState.AwaitResetAck;
+                        this.streamingState = StreamingState.AwaitResetAck;
                         break;
 
                     case StreamingState.AwaitResetAck:
-                        SetStreamingState(this.file.Open ? StreamingState.Idle : StreamingState.NoFile);
+                        SetStreamingState(this.file.Loaded ? StreamingState.Idle : StreamingState.NoFile);
                         break;
                 }
             }

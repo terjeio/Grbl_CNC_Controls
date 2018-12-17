@@ -1,7 +1,7 @@
 ﻿/*
  * GrblCore.cs - part of CNC Controls library
  *
- * 2018-09-23 / Io Engineering (Terje Io)
+ * v0.01 / 2018-12-16 / Io Engineering (Terje Io)
  *
  */
 
@@ -45,6 +45,7 @@ using System.Windows.Forms;
 using System.Globalization;
 using System.IO;
 using System.Data;
+using System.Diagnostics;
 
 namespace CNC_Controls
 {
@@ -55,8 +56,24 @@ namespace CNC_Controls
             CMD_RESET = 0x18, // ctrl-X
             CMD_STOP = 0x19, // ctrl-Y
             CMD_JOG_CANCEL = 0x85,
+            CMD_FEED_OVR_RESET = 0x90,
+            CMD_FEED_OVR_COARSE_PLUS = 0x91,
+            CMD_FEED_OVR_COARSE_MINUS = 0x92,
+            CMD_FEED_OVR_FINE_PLUS = 0x93,
+            CMD_FEED_OVR_FINE_MINUS = 0x94,
+            CMD_RAPID_OVR_RESET = 0x95,
+            CMD_RAPID_OVR_MEDIUM = 0x96,
+            CMD_RAPID_OVR_LOW = 0x97,
+            CMD_SPINDLE_OVR_RESET = 0x99,
+            CMD_SPINDLE_OVR_COARSE_PLUS = 0x9A,
+            CMD_SPINDLE_OVR_COARSE_MINUS = 0x9B,
+            CMD_SPINDLE_OVR_FINE_PLUS = 0x9C,
+            CMD_SPINDLE_OVR_FINE_MINUS = 0x9D,
+            CMD_SPINDLE_OVR_STOP = 0x9E,
             CMD_COOLANT_FLOOD_OVR_TOGGLE = 0xA0,
-            CMD_COOLANT_MIST_OVR_TOGGLE = 0xA1;
+            CMD_COOLANT_MIST_OVR_TOGGLE = 0xA1,
+            CMD_PID_REPORT = 0xA2,
+            CMD_TOOL_ACK = 0xA3;
 
         public const string
             CMD_STATUS_REPORT = "?",
@@ -69,7 +86,18 @@ namespace CNC_Controls
             CMD_GETPARSERSTATE = "$G",
             CMD_GETINFO = "$I",
             CMD_GETNGCPARAMETERS = "$#",
-            CMD_GETPIDDATA = "#";
+            CMD_PROGRAM_DEMARCATION = "%",
+            CMD_SDCARD_MOUNT = "$FM",
+            CMD_SDCARD_DIR = "$F",
+            CMD_SDCARD_RUN = "$F=";
+
+        public const int
+            X_AXIS = 0,
+            Y_AXIS = 1,
+            Z_AXIS = 2,
+            A_AXIS = 3,
+            B_AXIS = 4,
+            C_AXIS = 5;
     }
 
     public enum GrblStates
@@ -79,6 +107,7 @@ namespace CNC_Controls
         Run,
         Tool,
         Hold,
+        Home,
         Check,
         Jog,
         Alarm,
@@ -132,7 +161,13 @@ namespace CNC_Controls
         HomingCycle_3  = 46,
         HomingCycle_4  = 47,
         HomingCycle_5  = 48,
-        HomingCycle_6  = 49
+        HomingCycle_6  = 49,
+        JogStepSpeed = 50,
+        JogSlowSpeed = 51,
+        JogFastSpeed = 52,
+        JogStepDistance = 53,
+        JogSlowDistance = 54,
+        JogFastDistance = 55
     }
 
     public enum StreamingState
@@ -144,12 +179,20 @@ namespace CNC_Controls
         Home,
         Halted,
         FeedHold,
+        ToolChange,
         Stop,
         Reset,
         AwaitResetAck,
         Jogging,
         Disabled,
         Error
+    }
+
+    public enum SpindleState
+    {
+        Off,
+        CW,
+        CCW
     }
 
     public struct GrblState
@@ -177,10 +220,14 @@ namespace CNC_Controls
         public string A { get; private set; }
         public string FS { get; private set; }
         public string MPG { get; private set; }
+        public string Ov { get; private set; }
+        public string Pn { get; private set; }
+        public string Sc { get; private set; }
+        public string SD { get; private set; }
 
         public GrblStatusParameters()
         {
-            MPos = WPos = WCO = A = FS = MPG = "";
+            MPos = WPos = WCO = A = FS = MPG = Ov = Sc = Pn = SD = "";
         }
 
         public bool Set(string parameter, string value)
@@ -212,6 +259,26 @@ namespace CNC_Controls
                 case "FS":
                     if ((changed = this.FS != value))
                         this.FS = value;
+                    break;
+
+                case "Pn":
+                    if ((changed = this.Pn != value))
+                        this.Pn = value;
+                    break;
+
+                case "Ov":
+                    if ((changed = this.Ov!= value))
+                        this.Ov = value;
+                    break;
+
+                case "Sc":
+                    if ((changed = this.Sc != value))
+                        this.Sc = value;
+                    break;
+
+                case "SD":
+                    if ((changed = this.SD != value))
+                        this.SD = value;
                     break;
 
                 case "MPG":
@@ -256,11 +323,30 @@ namespace CNC_Controls
 
     public static class GrblInfo
     {
+        #region Attributes
+        public static string AxisLetters { get; private set; }
         public static string Version { get; private set; }
         public static string Options { get; private set; }
         public static int SerialBufferSize { get; private set; }
         public static int NumAxes { get; private set; }
         public static bool HasATC { get; private set; }
+        public static bool HasSDCard { get; private set; }
+        public static bool HasPIDLog { get; private set; }
+        public static bool LatheMode { get; set; }
+        #endregion
+
+        static GrblInfo()
+        {
+            GrblInfo.AxisLetters = "XYZABC";
+            GrblInfo.Version = "";
+            GrblInfo.Options = "";
+            GrblInfo.SerialBufferSize = 128;
+            GrblInfo.NumAxes = 3;
+            GrblInfo.HasATC = false;
+            GrblInfo.HasSDCard = false;
+            GrblInfo.HasPIDLog = false;
+            GrblInfo.LatheMode = false;
+        }
 
         public static void Get()
         {
@@ -273,7 +359,7 @@ namespace CNC_Controls
             Comms.com.PurgeQueue();
             Comms.com.WriteCommand(GrblConstants.CMD_GETINFO);
 
-            while (Comms.com.CommandState != Comms.State.ACK && Options == null)
+            while (Comms.com.CommandState == Comms.State.DataReceived || Comms.com.CommandState == Comms.State.AwaitAck)
                 Application.DoEvents();
 
             Comms.com.DataReceived -= GrblInfo.Process;
@@ -281,18 +367,94 @@ namespace CNC_Controls
 
         private static void Process(string data)
         {
-            if (data.StartsWith("[VER:"))
-                Version = data.Substring(5, data.Length - 6);
-            else if (data.StartsWith("[OPT:"))
-            {
-                Options = data.Substring(5, data.Length - 6);
-                string[] s = Options.Split(',');
-                GrblInfo.HasATC = s[0].Contains("T");
-                if (s.Length > 2)
-                    GrblInfo.SerialBufferSize = int.Parse(s[2], CultureInfo.InvariantCulture);
-                if (s.Length > 3)
-                    GrblInfo.NumAxes = int.Parse(s[3], CultureInfo.InvariantCulture);
+            if(data.StartsWith("[")) {
+
+                string[] valuepair = data.Substring(1).TrimEnd(']').Split(':');
+
+                switch(valuepair[0]) {
+
+                    case "VER":
+                        Version = valuepair[1];
+                        break;
+
+                    case "OPT":
+                        GrblInfo.Options = valuepair[1];
+                        string[] s = GrblInfo.Options.Split(',');
+                        if (s.Length > 2)
+                            GrblInfo.SerialBufferSize = int.Parse(s[2], CultureInfo.InvariantCulture);
+                        if (s.Length > 3)
+                            GrblInfo.NumAxes = int.Parse(s[3], CultureInfo.InvariantCulture);
+                        break;
+
+                    case "NEWOPT":
+                        string[] s2 = valuepair[1].Split(',');
+                        foreach (string value in s2)
+                        {
+                            if (value.StartsWith("ATC"))
+                                GrblInfo.HasATC = true;
+                            else switch (value)
+                            {
+                                case "ETH":
+                                    break;
+
+                                case "SD":
+                                    GrblInfo.HasSDCard = true;
+                                    break;
+
+                                case "PID":
+                                    GrblInfo.HasPIDLog = true;
+                                    break;
+                            }
+                        }
+                        break;
+                }
             }
+        }
+    }
+
+
+    public static class GrblParserState
+    {
+        private static Dictionary<string, string> state = new Dictionary<string, string>();
+
+        public static void Get()
+        {
+            Comms.com.DataReceived += new DataReceivedHandler(GrblParserState.Process);
+
+            Comms.com.PurgeQueue();
+            Comms.com.WriteCommand(GrblConstants.CMD_GETPARSERSTATE);
+
+            while (Comms.com.CommandState == Comms.State.DataReceived || Comms.com.CommandState == Comms.State.AwaitAck)
+                Application.DoEvents();
+
+            Comms.com.DataReceived -= GrblParserState.Process;
+        }
+
+        public static void Process(string data)
+        {
+            if (data.StartsWith("[GC:"))
+            {
+                GrblParserState.state.Clear();
+                string[] s = data.Substring(4).Split(' ');
+                foreach (string val in s)
+                {
+                    if(val.StartsWith("G51"))
+                        GrblParserState.state.Add(val.Substring(0, 3), val.Substring(4));
+                    else if("FST".Contains(val.Substring(0, 1)))
+                        GrblParserState.state.Add(val.Substring(0, 1), val.Substring(1));
+                    else
+                        GrblParserState.state.Add(val, "");
+                } 
+            }
+        }
+
+        public static string IsActive(string key) // returns null if not active, "" or parsed value if not
+        {
+            string value = null;
+
+            GrblParserState.state.TryGetValue(key, out value);
+
+            return value;
         }
     }
 
@@ -308,11 +470,11 @@ namespace CNC_Controls
             offset.Clear();
             tool.Clear();
 
-            Comms.com.DataReceived += new DataReceivedHandler(process);
             Comms.com.PurgeQueue();
+            Comms.com.DataReceived += new DataReceivedHandler(process);
             Comms.com.WriteCommand(GrblConstants.CMD_GETNGCPARAMETERS);
 
-            while (Comms.com.CommandState != Comms.State.ACK)
+            while (Comms.com.CommandState == Comms.State.DataReceived || Comms.com.CommandState == Comms.State.AwaitAck)
                 Application.DoEvents();
 
             Comms.com.DataReceived -= process;
@@ -481,6 +643,7 @@ namespace CNC_Controls
         }
     }
 
+
     public static class GrblSettings
     {
         public static DataTable data;
@@ -505,21 +668,29 @@ namespace CNC_Controls
 
         public static double parseDouble(string value)
         {
-            double result;
+            double result = double.NaN;
 
-            value = value.Trim();
+            if (value != null)
+            {
+                value = value.Trim();
 
-            if (value.Length == 0 || !double.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out result))
-                result = double.NaN;
+                if (value.Length == 0 || !double.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out result))
+                    result = double.NaN;
+            }
 
             return result;
         }
 
-        public static string GetValue(GrblSetting key)
+        public static string GetString(GrblSetting key)
         {
             DataRow[] rows = GrblSettings.data.Select("Id = " + ((int)key).ToString());
 
             return rows.Count() == 1 ? (string)rows[0]["Value"] : null;
+        }
+
+        public static double GetDouble(GrblSetting key)
+        {
+            return GrblSettings.parseDouble(GrblSettings.GetString(key));
         }
 
         public static void Load()
@@ -531,7 +702,7 @@ namespace CNC_Controls
             Comms.com.PurgeQueue();
             Comms.com.WriteCommand(GrblConstants.CMD_GETSETTINGS);
 
-            while (Comms.com.CommandState != Comms.State.ACK)
+            while (Comms.com.CommandState == Comms.State.DataReceived || Comms.com.CommandState == Comms.State.AwaitAck)
                 Application.DoEvents();
 
             Comms.com.DataReceived -= GrblSettings.Process;
@@ -587,7 +758,7 @@ namespace CNC_Controls
                 foreach (DataRow Setting in Settings.Rows)
                 {
                     Comms.com.WriteCommand(string.Format("${0}={1}", (int)Setting["Id"], (string)Setting["Value"]));
-                    while (Comms.com.CommandState != Comms.State.ACK)
+                    while (Comms.com.CommandState == Comms.State.AwaitAck)
                         Application.DoEvents();
                 }
                 GrblSettings.data.AcceptChanges();
@@ -626,7 +797,11 @@ namespace CNC_Controls
         private static void Process(string data)
         {
             if (data != "ok")
-                GrblSettings.data.Rows.Add(new object[] { data.Substring(1, data.IndexOf("=") - 1), "", data.Substring(data.IndexOf("=") + 1), "", "", "", "", double.NaN, double.NaN });
+            {
+                string[] valuepair = data.Split('=');
+                if (valuepair.Length == 2 && valuepair[1] != "")
+                    GrblSettings.data.Rows.Add(new object[] { valuepair[0].Substring(1), "", valuepair[1], "", "", "", "", double.NaN, double.NaN });
+            }
         }
 
     }
@@ -656,6 +831,64 @@ namespace CNC_Controls
         void pollTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
             Comms.com.WriteByte(Encoding.Default.GetBytes(GrblConstants.CMD_STATUS_REPORT)[0]);
+        }
+    }
+
+    public static class JobTimer
+    {
+        private static bool paused = false;
+        private static Stopwatch stopWatch = null;
+
+        static JobTimer()
+        {
+            JobTimer.stopWatch = new Stopwatch();
+        }
+
+        public static bool IsRunning { get { return JobTimer.stopWatch.IsRunning || JobTimer.paused; } }
+
+        public static bool IsPaused { get { return JobTimer.paused; } }
+
+        public static bool Pause {
+            get {
+                return JobTimer.paused;
+            }
+            set
+            {
+                if (value) {
+                    if (JobTimer.stopWatch.IsRunning)
+                    {
+                        JobTimer.stopWatch.Stop();
+                        JobTimer.paused = true;
+                    }
+                }
+                else if (JobTimer.paused)
+                {
+                    JobTimer.stopWatch.Start();
+                    JobTimer.paused = false;
+                }
+            }
+        }
+
+        public static string RunTime
+        {
+            get
+            {
+                return String.Format("{0:00}:{1:00}:{2:00}",
+                                       JobTimer.stopWatch.Elapsed.Hours, JobTimer.stopWatch.Elapsed.Minutes, JobTimer.stopWatch.Elapsed.Seconds);
+            }
+        }
+
+        public static void Start()
+        {
+            JobTimer.paused = false;
+            JobTimer.stopWatch.Reset();
+            JobTimer.stopWatch.Start();
+        }
+
+        public static void Stop()
+        {
+            JobTimer.paused = false;
+            JobTimer.stopWatch.Stop();
         }
     }
 }

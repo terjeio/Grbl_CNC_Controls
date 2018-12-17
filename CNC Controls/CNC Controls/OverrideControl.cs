@@ -1,5 +1,5 @@
 ﻿/*
- * CoolantControl.cs - part of CNC Controls library
+ * OverrideControl.cs - part of CNC Controls library
  *
  * 2018-09-23 / Io Engineering (Terje Io)
  *
@@ -48,57 +48,56 @@ using System.Windows.Forms;
 
 namespace CNC_Controls
 {
-    public partial class CoolantControl : UserControl
+    public partial class OverrideControl : UserControl
     {
-        public bool silent = false;
-
         public delegate void CommandGeneratedHandler(string command);
         public event CommandGeneratedHandler CommandGenerated;
 
-        public CoolantControl()
+        public OverrideControl()
         {
             InitializeComponent();
 
-            this.chkFlood.Tag = ((char)GrblConstants.CMD_COOLANT_FLOOD_OVR_TOGGLE).ToString();
-            this.chkFlood.CheckedChanged += new EventHandler(chkCoolant_CheckedChanged);
-
-            this.chkMist.Tag = ((char)GrblConstants.CMD_COOLANT_MIST_OVR_TOGGLE).ToString();
-            this.chkMist.CheckedChanged += new EventHandler(chkMist_CheckedChanged);
+            this.btnOvReset.Click += new EventHandler(btnOverrideClick);
+            this.btnOvFineMinus.Click += new EventHandler(btnOverrideClick);
+            this.btnOvFinePlus.Click += new EventHandler(btnOverrideClick);
+            this.btnOvCoarseMinus.Click += new EventHandler(btnOverrideClick);
+            this.btnOvCoarsePlus.Click += new EventHandler(btnOverrideClick);
         }
 
-        public bool EnableControl
+        public byte ResetCommand { set { this.btnOvReset.Tag = ((char)value).ToString(); } }
+        public byte FinePlusCommand { set { this.btnOvFinePlus.Tag = ((char)value).ToString(); } }
+        public byte FineMinusCommand { set { this.btnOvFineMinus.Tag = ((char)value).ToString(); } }
+        public byte CoarsePlusCommand { set { this.btnOvCoarsePlus.Tag = ((char)value).ToString(); } }
+        public byte CoarseMinusCommand { set { this.btnOvCoarseMinus.Tag = ((char)value).ToString(); } }
+
+        private int cl (Control c)
         {
-            get { return this.chkFlood.Enabled; }
+            return c.Location.Y + c.Height / 2;
+        }
+
+        public bool MinusOnly
+        {
             set
             {
-                this.chkFlood.Enabled = this.chkMist.Enabled = value;
+                if (this.btnOvFinePlus.Visible & value == true)
+                {
+                    this.btnOvFinePlus.Hide();
+                    this.btnOvCoarsePlus.Hide();
+                    this.btnOvFineMinus.Location = new Point(this.btnOvFineMinus.Location.X, this.btnOvFineMinus.Location.Y - (cl(this.btnOvFineMinus) - cl(this.txtOverride)));
+                    this.btnOvCoarseMinus.Location = new Point(this.btnOvCoarseMinus.Location.X, this.btnOvCoarseMinus.Location.Y - (cl(this.btnOvCoarseMinus) - cl(this.txtOverride)));
+
+                }
+
             }
         }
 
-        public bool MistOn
-        {
-            get { return this.chkMist.Checked; }
-            set { silent = true; this.chkMist.Checked = value; silent = false; }
-        }
-        public bool FloodOn
-        {
-            get { return this.chkFlood.Checked; }
-            set { silent = true; this.chkFlood.Checked = value; silent = false; }
-        }
 
-        public string FloodCommand { get { return string.Format((string)this.chkFlood.Tag, FloodOn ? "1" : "0"); } set { this.chkFlood.Tag = value; } }
-        public string MistCommand { get { return string.Format((string)this.chkMist.Tag, MistOn ? "1" : "0"); } set { this.chkMist.Tag = value; } }
+        public int Value { set { this.txtOverride.Text = value.ToString() + "%"; } }
 
-        void chkCoolant_CheckedChanged(object sender, EventArgs e)
+        void btnOverrideClick(object sender, EventArgs e)
         {
-            if (!silent)
-                CommandGenerated((string)this.chkFlood.Tag);
-        }
-
-        void chkMist_CheckedChanged(object sender, EventArgs e)
-        {
-            if (!silent)
-                CommandGenerated((string)this.chkMist.Tag);
+            if (CommandGenerated != null)
+                CommandGenerated((string)((Button)sender).Tag);
         }
     }
 }

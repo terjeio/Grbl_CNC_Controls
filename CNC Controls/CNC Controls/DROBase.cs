@@ -1,7 +1,7 @@
 ﻿/*
- * Interface.cs - part of CNC Controls library for Grbl
+ * DROBase.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * 2018-10-02 / Io Engineering (Terje Io)
  *
  */
 
@@ -39,27 +39,27 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
+using System.Data;
 using System.Linq;
 using System.Text;
+using System.Windows.Forms;
 
-namespace CNC_App
+namespace CNC_Controls
 {
-    public enum UIMode
+    public partial class DROBase : UserControl
     {
-        Startup = 0,
-        Shutdown,
-        Engraving,
-        Mach3,
-        GRBL,
-        GRBLConfig,
-        PIDTuner,
-        SDCard
-    }
+        public DROBase()
+        {
+            InitializeComponent();
+        }
 
-    public interface IRenderer
-    {
-        UIMode mode { get; }
-        void Activate(bool activate, UIMode chgMode);
-        void CloseFile();
+        public string Label { set { this.btnZero.Tag = this.txtReadout.Tag = this.lblAxis.Text = value; } }
+        public string Value { set { this.txtReadout.Text = value; } }
+        public bool Scaled { set {  this.btnScaled.BackColor = value ? Color.Yellow : this.BackColor; } }
+
+        public TextBox Readout { get { return this.txtReadout; } }
+        public Button Zero { get { return this.btnZero; } }
     }
 }

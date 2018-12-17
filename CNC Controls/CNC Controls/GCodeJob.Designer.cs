@@ -55,7 +55,7 @@
             this.btnRewind.Location = new System.Drawing.Point(234, 395);
             this.btnRewind.Name = "btnRewind";
             this.btnRewind.Size = new System.Drawing.Size(71, 32);
-            this.btnRewind.TabIndex = 44;
+            this.btnRewind.TabIndex = 0;
             this.btnRewind.TabStop = false;
             this.btnRewind.Text = "Rewind";
             this.btnRewind.UseVisualStyleBackColor = true;
@@ -67,7 +67,7 @@
             this.btnStop.Location = new System.Drawing.Point(157, 395);
             this.btnStop.Name = "btnStop";
             this.btnStop.Size = new System.Drawing.Size(71, 32);
-            this.btnStop.TabIndex = 43;
+            this.btnStop.TabIndex = 0;
             this.btnStop.TabStop = false;
             this.btnStop.Text = "Stop";
             this.btnStop.UseVisualStyleBackColor = true;
@@ -77,7 +77,7 @@
             this.btnHold.Location = new System.Drawing.Point(80, 395);
             this.btnHold.Name = "btnHold";
             this.btnHold.Size = new System.Drawing.Size(71, 32);
-            this.btnHold.TabIndex = 42;
+            this.btnHold.TabIndex = 0;
             this.btnHold.TabStop = false;
             this.btnHold.Text = "Hold";
             this.btnHold.UseVisualStyleBackColor = true;
@@ -87,7 +87,7 @@
             this.btnStart.Location = new System.Drawing.Point(3, 395);
             this.btnStart.Name = "btnStart";
             this.btnStart.Size = new System.Drawing.Size(71, 32);
-            this.btnStart.TabIndex = 41;
+            this.btnStart.TabIndex = 0;
             this.btnStart.TabStop = false;
             this.btnStart.Text = "Start";
             this.btnStart.UseVisualStyleBackColor = true;

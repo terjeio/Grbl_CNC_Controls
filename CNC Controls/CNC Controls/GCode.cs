@@ -70,6 +70,7 @@ namespace CNC_Controls
             this.gcode.Columns.Add("Data", typeof(string));
             this.gcode.Columns.Add("Length", typeof(int));
             this.gcode.Columns.Add("File", typeof(bool));
+            this.gcode.Columns.Add("ProgramEnd", typeof(bool));
             this.gcode.Columns.Add("Sent", typeof(string));
             this.gcode.Columns.Add("Ok", typeof(bool));
             this.gcode.PrimaryKey = new DataColumn[] { this.gcode.Columns["LineNum"] };
@@ -82,7 +83,7 @@ namespace CNC_Controls
 
         public DataTable Data { get { return gcode; } }
         public BindingSource Source { get { return source; } }
-        public bool Open { get { return gcode.Rows.Count > 0; } }
+        public bool Loaded { get { return gcode.Rows.Count > 0; } }
 
         public double min_feed { get; private set; }
         public double max_feed { get; private set; }
@@ -98,11 +99,50 @@ namespace CNC_Controls
         
         public string filename { get; private set; }
 
+        public string StripSpaces (string line)
+        {
+            string s;
+            bool skip = true;
+
+            s = line.ToUpper();
+
+            if (s.Contains("(MSG,"))
+            {
+                s = "";
+                foreach (char c in line)
+                {
+                    switch (c)
+                    {
+                        case '(':
+                            s += c;
+                            skip = false;
+                            break;
+                        case ')':
+                            skip = true;
+                            s += c;
+                            break;
+                        case ' ':
+                            if(!skip)
+                                s += c;
+                            break;
+                        default:
+                            s += c;
+                            break;
+                    }
+                }
+            }
+            else
+                s = line.Replace(" ", "");
+
+            return s;
+        }
+
         public bool LoadFile (string filename) {
 
+            bool ok = true, end;
             int LineNumber = 0;
 
-            if (this.Open)
+            if (this.Loaded)
                 this.gcode.Rows.Clear();
 
             commands.Clear();
@@ -115,16 +155,30 @@ namespace CNC_Controls
 
             StreamReader sr = file.OpenText();
 
+            this.gcode.BeginLoadData();
+
             string s = sr.ReadLine();
 
             while (s != null)
             {
-                if(ParseBlock(s + "\r", false))
-                    this.gcode.Rows.Add(new object[] { LineNumber++, s, s.Length + 1, true, "", false });
-                while(commands.Count > 0)
-                    this.gcode.Rows.Add(new object[] { LineNumber++, commands.Dequeue(), 20, true, "", false });
-                s = sr.ReadLine();
+                try {
+                    if (ParseBlock(s.Trim() + "\r", false))
+                    {
+                        end = s == "M30" || s == "M2" || s == "M02";
+                        this.gcode.Rows.Add(new object[] { LineNumber++, s, s.Length + 1, true, end, "", false });
+                        while(commands.Count > 0)
+                            this.gcode.Rows.Add(new object[] { LineNumber++, commands.Dequeue(), 20, true, false, "", false });
+                    }
+                    s = sr.ReadLine();
+                } catch(Exception e) {
+                    if ((ok = MessageBox.Show(string.Format("Line: {0}\rBlock: \"{1}\"\r\rContinue loading?", LineNumber, s), e.Message, MessageBoxButtons.YesNo) == DialogResult.Yes))
+                        s = sr.ReadLine();
+                    else
+                        s = null;
+                }
             }
+
+            this.gcode.EndLoadData();
 
             sr.Close();
 
@@ -152,20 +206,25 @@ namespace CNC_Controls
                 max_z = 0.0;
             }
 
-            if (FileChanged != null)
-                FileChanged(filename);
+            if (ok)
+            {
+                if (FileChanged != null)
+                    FileChanged(filename);
+            }
+            else
+                CloseFile();
 
             return true;
         }
 
         public void CloseFile()
         {
-            if (this.Open)
+            if (this.Loaded)
                 this.gcode.Rows.Clear();
 
-            commands.Clear();
+            this.commands.Clear();
 
-            Reset();
+            this.Reset();
 
             this.filename = "";
 
@@ -189,7 +248,7 @@ namespace CNC_Controls
         public bool ParseBlock(string block, bool quiet)
         {
 
-            const string ignore = "$!~?(";
+            const string ignore = "$!~?";
             const string codes = "MTSGFXYZR";
             const string all = "MTFGPSXYZIJKR [](\r";
             const string special = "TSFXYZR";
@@ -204,10 +263,8 @@ namespace CNC_Controls
 
             foreach (char c in block)
             {
-
                 if (all.Contains(c))
                 {
-
                     collect = false;
 
                     if (gcode != "")
@@ -231,56 +288,61 @@ namespace CNC_Controls
 
             foreach (string code in gcodes)
             {
-
                 if (special.Contains(code.Substring(0, 1)))
                 {
-
-                    value = double.Parse(code.Remove(0, 1), CultureInfo.InvariantCulture);
-
-                    switch (code.Substring(0, 1))
+                    try
                     {
+                        value = double.Parse(code.Remove(0, 1), CultureInfo.InvariantCulture);
 
-                        case "F":
-                            min_feed = Math.Min(min_feed, value);
-                            max_feed = Math.Max(max_feed, value);
-                            break;
+                        switch (code.Substring(0, 1))
+                        {
 
-                        case "X":
-                            min_x = Math.Min(min_x, value);
-                            max_x = Math.Max(max_x, value);
-                            break;
+                            case "F":
+                                min_feed = Math.Min(min_feed, value);
+                                max_feed = Math.Max(max_feed, value);
+                                break;
 
-                        case "Y":
-                            min_y = Math.Min(min_y, value);
-                            max_y = Math.Max(max_y, value);
-                            break;
+                            case "X":
+                                min_x = Math.Min(min_x, value);
+                                max_x = Math.Max(max_x, value);
+                                break;
 
-                        case "Z":
-                            min_z = Math.Min(min_z, value);
-                            max_z = Math.Max(max_z, value);
-                            break;
+                            case "Y":
+                                min_y = Math.Min(min_y, value);
+                                max_y = Math.Max(max_y, value);
+                                break;
 
-                        case "T":
-                            if (!quiet && ToolChanged != null)
-                            {
-                                if(!ToolChanged((int)value))
-                                    MessageBox.Show(string.Format("Tool {0} not associated with a profile!", value.ToString()), "GCode parser", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            }
-                            break;
+                            case "Z":
+                                min_z = Math.Min(min_z, value);
+                                max_z = Math.Max(max_z, value);
+                                break;
+
+                            case "T":
+                                if (!quiet && ToolChanged != null)
+                                {
+                                    if (!ToolChanged((int)value))
+                                        MessageBox.Show(string.Format("Tool {0} not associated with a profile!", value.ToString()), "GCode parser", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                }
+                                break;
+                        }
+                    }
+                    catch(Exception e)
+                    {
+                        throw new System.ArgumentException("Invalid GCode", e);
                     }
 
                 }
                 else switch (code)
                     {
-
                         case "G20":
                             break;
-
-
+                        case "M6":
+                        case "M06":
+                            string s = code;
+                            break;
                     }
             }
             return true;
         }
-
     }
 }
