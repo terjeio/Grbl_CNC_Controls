@@ -1,13 +1,13 @@
 ﻿/*
  * SpindleControl.cs - part of CNC Controls library
  *
- * 2018-09-23 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -45,6 +45,7 @@ using System.Data;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using System.Globalization;
 
 namespace CNC_Controls
 {
@@ -62,10 +63,11 @@ namespace CNC_Controls
             this.SpindleState = SpindleState.Off;
             this.rbSpindleOff.Tag = "M5";
             this.rbSpindleOff.CheckedChanged += new EventHandler(rbSpindleState_CheckedChanged);
-            this.rbSpindleCW.Tag = "M3";
+            this.rbSpindleCW.Tag = "M3{0}";
             this.rbSpindleCW.CheckedChanged += new EventHandler(rbSpindleState_CheckedChanged);
-            this.rbSpindleCCW.Tag = "M4";
+            this.rbSpindleCCW.Tag = "M4{0}";
             this.rbSpindleCCW.CheckedChanged += new EventHandler(rbSpindleState_CheckedChanged);
+            this.txtRPM.KeyPress += new KeyPressEventHandler(txtRPM_KeyPress);
 
             this.overrideControl.ResetCommand = GrblConstants.CMD_SPINDLE_OVR_RESET;
             this.overrideControl.FineMinusCommand = GrblConstants.CMD_SPINDLE_OVR_FINE_MINUS;
@@ -106,7 +108,11 @@ namespace CNC_Controls
             }
         }
 
-        public double RPM { get { return 0; } set { this.txtRPM.Text = value.ToString(); } }
+        public double RPM {
+            get { return this.DesignMode ? 0 : double.Parse(this.txtRPM.Text, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture); }
+            set { this.txtRPM.Text = value.ToString(CultureInfo.InvariantCulture); }
+        }
+        
         public int Override { set { this.overrideControl.Value = value; } }
         public override bool Focused { get { return this.txtRPM.Focused; } }
 
@@ -118,9 +124,15 @@ namespace CNC_Controls
                 if(rb.Checked) {
                     _state = rb.Name == "rbSpindleCW" ? SpindleState.CW : (rb.Name == "rbSpindleCCW" ? SpindleState.CCW :  SpindleState.Off);
                     if (CommandGenerated != null)
-                        CommandGenerated((string)rb.Tag);
+                        CommandGenerated(string.Format((string)rb.Tag, "S" + this.txtRPM.Text));
                 }
             }
+            txtRPM.ReadOnly = _state != SpindleState.Off;
+        }
+
+        private void txtRPM_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            e.Handled = !char.IsDigit(e.KeyChar);
         }
 
         void overrideControl_CommandGenerated(string command)

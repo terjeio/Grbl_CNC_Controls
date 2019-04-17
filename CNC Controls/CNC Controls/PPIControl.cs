@@ -53,7 +53,6 @@ namespace CNC_Controls
 
         private bool tbrClicked = false;
         private double speed = 0.0;
-        private string powerCommand, ppiCommand, pulseWidthCommand;
 
         public delegate void CommandGeneratedHandler(string command);
         public event CommandGeneratedHandler CommandGenerated;
@@ -62,9 +61,9 @@ namespace CNC_Controls
         {
             InitializeComponent();
 
-            this.powerCommand = "M4S{0}";
-            this.ppiCommand = "M124P{0}";
-            this.pulseWidthCommand = "M123P{0}";
+            this.tbrMaxPower.Tag = "M4S{0}";
+            this.tbrPPI.Tag = "M123P{0}";
+            this.tbrPulseWidth.Tag = "M124P{0}";
 
             this.tbrPulseWidth.MouseDown += new MouseEventHandler(tbrMouseDown);
             this.tbrPulseWidth.MouseUp += new MouseEventHandler(tbrPulseWidth_MouseUp);
@@ -77,16 +76,15 @@ namespace CNC_Controls
             this.tbrPPI.MouseDown += new MouseEventHandler(tbrMouseDown);
             this.tbrPPI.MouseUp += new MouseEventHandler(tbrPPI_MouseUp);
             this.tbrPPI.Scroll += new EventHandler(tbrPPI_Scrolled);
-
         }
 
         public override bool Focused { get { return this.tbrPulseWidth.Focused || this.tbrMaxPower.Focused || this.tbrPPI.Focused ; } }
 
         public double Speed {
-            get { return speed; }
+            get { return this.speed; }
             set {
-                speed = value;
-                this.txtSpeed.Text = speed.ToString("#");
+                this.speed = value;
+                this.txtSpeed.Text = this.speed.ToString("#");
                 this.displayPulseWidth();
             }
         }
@@ -123,16 +121,16 @@ namespace CNC_Controls
         }
 
         public string PowerCommand {
-            get { return string.Format(this.powerCommand, Power); }
-            set { this.powerCommand = value; }
+            get { return string.Format((string)this.tbrMaxPower.Tag, Power); }
+            set { this.tbrMaxPower.Tag = value; }
         }
         public string PulseWidthCommand {
-            get { return string.Format(this.pulseWidthCommand, PulseWidth); } 
-            set { this.pulseWidthCommand = value; } 
+            get { return string.Format((string)this.tbrPulseWidth.Tag, PulseWidth); } 
+            set { this.tbrPulseWidth.Tag = value; } 
         }
         public string PPICommand {
-            get { return string.Format(this.ppiCommand, PPI); }
-            set { this.ppiCommand = value; }
+            get { return string.Format((string)this.tbrPPI.Tag, PPI); }
+            set { this.tbrPPI.Tag = value; }
         }
 
         void tbrMouseDown(object sender, MouseEventArgs e)
@@ -189,22 +187,21 @@ namespace CNC_Controls
             */
             this.Power = this.tbrMaxPower.Value;
             if(CommandGenerated != null)
-                CommandGenerated(PowerCommand);
-
+                CommandGenerated(this.PowerCommand);
         }
         
         void setPulseWidth()
         {
             this.PulseWidth = this.tbrPulseWidth.Value;
             if (CommandGenerated != null)
-                CommandGenerated(PulseWidthCommand);
+                CommandGenerated(this.PulseWidthCommand);
         }
 
         void setPPI()
         {
             this.PPI = this.tbrPPI.Value;
             if (CommandGenerated != null)
-                CommandGenerated(PPICommand);
+                CommandGenerated(this.PPICommand);
         }
 
         void displayPulseWidth()

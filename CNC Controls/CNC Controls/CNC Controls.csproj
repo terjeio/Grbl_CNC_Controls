@@ -126,6 +126,12 @@
     <Compile Include="MDIControl.designer.cs">
       <DependentUpon>MDIControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="MPGPending.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MPGPending.designer.cs">
+      <DependentUpon>MPGPending.cs</DependentUpon>
+    </Compile>
     <Compile Include="OverrideControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -201,6 +207,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="MDIControl.resx">
       <DependentUpon>MDIControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="MPGPending.resx">
+      <DependentUpon>MPGPending.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="OverrideControl.resx">
       <DependentUpon>OverrideControl.cs</DependentUpon>

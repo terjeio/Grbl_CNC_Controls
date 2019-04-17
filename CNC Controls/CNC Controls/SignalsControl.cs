@@ -52,10 +52,32 @@ namespace CNC_Controls
     {
         Color LEDOn = Color.Red, LEDOff = Color.LightGray;
 
+        private const string baseSignals = "HSRDP";
+
         public SignalsControl()
         {
             InitializeComponent();
-            this.Config("XYZHSRDP");
+            this.Config("XYZ" + SignalsControl.baseSignals);
+            this.Set("");
+        }
+
+        public void setLatheMode()
+        {
+            this.Config("XZ" + SignalsControl.baseSignals);
+            this.Set("");
+        }
+
+        public void setNumAxes(int numAxes)
+        {
+            if (numAxes <= 3 || numAxes > 6)
+                return;
+
+            string axes = "XYZ";
+
+            for (int axis = 3; axis < numAxes; axis++)
+                axes += GrblInfo.AxisLetters.Substring(axis, 1);
+
+            this.Config(axes + SignalsControl.baseSignals);
             this.Set("");
         }
 

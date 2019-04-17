@@ -55,7 +55,7 @@ namespace CNC_Controls
         private int _realSpeed = 100;
         private string dpiCommand = "", powerCommand = "", dutyCycleCommand = "", speedCommand = "";
 
-        public double StepsPerMM = 47.0;
+        public double StepsPerMM = 1200.0 / 25.4; // @ 1200 DPI / 1 step per pixel
 
         public delegate void CommandGeneratedHandler(string command);
         public event CommandGeneratedHandler CommandGenerated;

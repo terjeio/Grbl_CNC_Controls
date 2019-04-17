@@ -1,13 +1,13 @@
 ﻿/*
  * Comms.cs - part of CNC Controls library
  *
- * 2018-12-10 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -64,6 +64,13 @@ namespace CNC_Controls
             NAK
         }
 
+        public enum ResetMode
+        {
+            None,
+            DTR,
+            RTS
+        }
+
         public const int TXBUFFERSIZE = 4096, RXBUFFERSIZE = 1024;
 
         public static StreamComms com = null;
@@ -98,7 +105,7 @@ namespace CNC_Controls
 
         public event DataReceivedHandler DataReceived;
 
-        public SerialComms (string PortParams)
+        public SerialComms (string PortParams, Comms.ResetMode ResetMode)
         {
             Comms.com = this;
             this.Reply = "";
@@ -179,10 +186,13 @@ namespace CNC_Controls
         {
             this.state = Comms.State.AwaitAck;
 
-            if (command.Length > 1 || command == GrblConstants.CMD_PROGRAM_DEMARCATION)
+            if (command.Length == 1 && command != GrblConstants.CMD_PROGRAM_DEMARCATION)
+                WriteByte((byte)command.ToCharArray()[0]);
+            else if (command.Length > 0)
+            {
                 command += "\r";
-
-            this.SerialPort.WriteStr(command);
+                this.SerialPort.WriteStr(command);
+            }
         }
 
         public string getReply(string command)
@@ -231,7 +241,7 @@ namespace CNC_Controls
         StreamWriter log = null;
 #endif
 
-        public SerialComms(string PortParams)
+        public SerialComms(string PortParams, Comms.ResetMode ResetMode)
         {
             Comms.com = this;
             this.Reply = "";
@@ -269,13 +279,26 @@ namespace CNC_Controls
 
             if (this.SerialPort.IsOpen)
             {
-                /* For resetting ESP32, use DTR for Arduino */    
-                this.SerialPort.RtsEnable = true;
-                this.SerialPort.RtsEnable = false;
-                           System.Threading.Thread.Sleep(2000);
-
                 this.PurgeQueue();
                 this.SerialPort.DataReceived += new SerialDataReceivedEventHandler(SerialPort_DataReceived);
+
+                switch(ResetMode)
+                {
+                    case Comms.ResetMode.RTS:
+                        /* For resetting ESP32 */    
+                        this.SerialPort.RtsEnable = true;
+                        this.SerialPort.RtsEnable = false;
+                        System.Threading.Thread.Sleep(2000);
+                        break;
+
+                    case Comms.ResetMode.DTR:
+                        /* For resetting Arduino */
+                        this.SerialPort.DtrEnable = true;
+                        this.SerialPort.DtrEnable = false;
+                        System.Threading.Thread.Sleep(2000);
+                        break;
+                }
+
 #if RESPONSELOG
                 this.log = new StreamWriter(@"D:\grbl.txt");
 #endif
@@ -366,10 +389,13 @@ namespace CNC_Controls
         {
             this.state = Comms.State.AwaitAck;
 
-            if (command.Length > 1 || command == GrblConstants.CMD_PROGRAM_DEMARCATION)
+            if (command.Length == 1 && command != GrblConstants.CMD_PROGRAM_DEMARCATION)
+                WriteByte((byte)command.ToCharArray()[0]);
+            else if (command.Length > 0)
+            {
                 command += "\r";
-
-            this.SerialPort.Write(command);
+                this.SerialPort.Write(command);
+            }
         }
 
         public string getReply(string command)

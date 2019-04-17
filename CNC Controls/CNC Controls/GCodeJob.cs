@@ -1,13 +1,13 @@
 ﻿/*
  * GCodeJob.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2018-12-16 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -114,7 +114,8 @@ namespace CNC_Controls
             this.poller = new PollGrbl();
             this.polling = new Thread(new ThreadStart(poller.run));
             polling.Start();
-            while (!polling.IsAlive);
+            System.Threading.Thread.Sleep(100);
+      //      while (!polling.IsAlive);
         }
 
         public GrblStates state { get { return grblState.State; } } 
@@ -563,11 +564,11 @@ namespace CNC_Controls
                 StreamingStateChanged(this.streamingState);
         }
 
-        void SetGRBLState(string newState, int substate)
+        void SetGRBLState(string newState, int substate, bool force)
         {
             GrblStates newstate = (GrblStates)Enum.Parse(typeof(GrblStates), newState);
 
-            if (newstate != this.grblState.State || substate != this.grblState.Substate)
+            if (newstate != this.grblState.State || substate != this.grblState.Substate || force)
             {
                 switch (newstate)
                 {
@@ -674,6 +675,9 @@ namespace CNC_Controls
                 bool parseState = true;
                 data = data.Remove(data.Length - 1);
 
+                if (!data.Contains("|Pn:"))
+                    data += "|Pn:";
+
                 string[] elements = data.Split('|');
 
                 foreach (string e in elements)
@@ -682,7 +686,7 @@ namespace CNC_Controls
 
                     if (parseState)
                     {
-                        SetGRBLState(pair[0].Substring(1), pair.Count() == 1 ? -1 : int.Parse(pair[1]));
+                        SetGRBLState(pair[0].Substring(1), pair.Count() == 1 ? -1 : int.Parse(pair[1]), false);
                         parseState = false;
                     }
                     else if (parameters.Set(pair[0], pair[1]))
@@ -699,7 +703,7 @@ namespace CNC_Controls
             }
             else if (data.StartsWith("ALARM"))
             {
-                SetGRBLState("Alarm", -1);
+                SetGRBLState("Alarm", -1, false);
             }
             else if (data.StartsWith("[GC:"))
             {
@@ -735,7 +739,11 @@ namespace CNC_Controls
                         if (data.StartsWith("error"))
                             SetStreamingState(StreamingState.Halted);
                         else if ((this.pgmComplete = this.PgmEndLine == this.PendingLine))
+                        {
                             this.ACKPending = this.CurrLine = 0;
+                            if(this.grblState.State == GrblStates.Idle)
+                                SetGRBLState(GrblStates.Idle.ToString(), -1, true);
+                        }
                         else
                             SendNextLine();
                     }

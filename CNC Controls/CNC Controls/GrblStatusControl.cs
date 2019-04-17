@@ -1,13 +1,13 @@
 ﻿/*
  * GrblStatusControl.cs - part of CNC Controls library for Grbl
  *
- * 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -62,6 +62,8 @@ namespace CNC_Controls
             this.btnHome.Click += new EventHandler(btnHome_Click);
             this.btnUnlock.Click += new EventHandler(btnUnlock_Click);
             this.chkCheckMode.CheckedChanged += new EventHandler(chkCheckMode_CheckedChanged);
+
+            this.txtState.ReadOnly = true;
         }
 
         public bool HomingEnabled { get; set; }

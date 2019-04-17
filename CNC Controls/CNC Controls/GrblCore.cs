@@ -1,13 +1,13 @@
 ﻿/*
  * GrblCore.cs - part of CNC Controls library
  *
- * v0.01 / 2018-12-16 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -224,10 +224,11 @@ namespace CNC_Controls
         public string Pn { get; private set; }
         public string Sc { get; private set; }
         public string SD { get; private set; }
+        public string Ex { get; private set; }
 
         public GrblStatusParameters()
         {
-            MPos = WPos = WCO = A = FS = MPG = Ov = Sc = Pn = SD = "";
+            MPos = WPos = WCO = A = FS = MPG = Ov = Sc = Pn = SD = Ex = "";
         }
 
         public bool Set(string parameter, string value)
@@ -274,6 +275,11 @@ namespace CNC_Controls
                 case "Sc":
                     if ((changed = this.Sc != value))
                         this.Sc = value;
+                    break;
+
+                case "Ex":
+                    if ((changed = this.Ex != value))
+                        this.Ex = value;
                     break;
 
                 case "SD":
@@ -403,6 +409,10 @@ namespace CNC_Controls
 
                                 case "PID":
                                     GrblInfo.HasPIDLog = true;
+                                    break;
+
+                                case "LATHE":
+                                    GrblInfo.LatheMode = true;
                                     break;
                             }
                         }

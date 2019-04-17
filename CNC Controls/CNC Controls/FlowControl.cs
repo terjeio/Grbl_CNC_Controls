@@ -57,20 +57,17 @@ namespace CNC_Controls
         public delegate void CommandGeneratedHandler(string command);
         public event CommandGeneratedHandler CommandGenerated;
 
-        private string exhaustCommand, coolantCommand, airAssistCommand;
-
         public FlowControl()
         {
             InitializeComponent();
 
-            exhaustCommand = ((char)GrblConstants.CMD_COOLANT_FLOOD_OVR_TOGGLE).ToString();
-            airAssistCommand = ((char)GrblConstants.CMD_COOLANT_MIST_OVR_TOGGLE).ToString();
-            coolantCommand = "M125P2Q{0}";
+            this.chkExhaust.Tag = ((char)GrblConstants.CMD_COOLANT_FLOOD_OVR_TOGGLE).ToString();
+            this.chkAir.Tag = ((char)GrblConstants.CMD_COOLANT_MIST_OVR_TOGGLE).ToString();
+            this.chkCoolant.Tag = "M125P2Q{0}";
 
             this.chkAir.CheckedChanged += new EventHandler(chkAir_CheckedChanged);
             this.chkExhaust.CheckedChanged += new EventHandler(chkExhaust_CheckedChanged);
             this.chkCoolant.CheckedChanged += new EventHandler(chkCoolant_CheckedChanged);
-
         }
 
         public bool EnableControl
@@ -85,9 +82,9 @@ namespace CNC_Controls
         public bool CoolantOn { get { return this.chkCoolant.Checked; } set { this.chkCoolant.Checked = value; } }
         public bool AirAssistOn { get { return this.chkAir.Checked; } set { this.chkAir.Checked = value; } }
 
-        public string ExhaustCommand { get { return string.Format(this.exhaustCommand, ExhaustOn ? "1" : "0"); } set { this.exhaustCommand = value; } }
-        public string CoolantCommand { get { return string.Format(this.coolantCommand, CoolantOn ? "1" : "0"); } set { this.coolantCommand = value; } }
-        public string AirAssistCommand { get { return string.Format(this.airAssistCommand, AirAssistOn ? "1" : "0"); } set { this.airAssistCommand = value; } }
+        public string ExhaustCommand { get { return string.Format((string)this.chkExhaust.Tag, this.ExhaustOn ? "1" : "0"); } set { this.chkExhaust.Tag = value; } }
+        public string CoolantCommand { get { return string.Format((string)this.chkCoolant.Tag, this.CoolantOn ? "1" : "0"); } set { this.chkCoolant.Tag = value; } }
+        public string AirAssistCommand { get { return string.Format((string)this.chkAir.Tag, this.AirAssistOn ? "1" : "0"); } set { this.chkAir.Tag = value; } }
 
         private void chkExhaust_CheckedChanged(object sender, EventArgs e)
         {
@@ -104,7 +101,7 @@ namespace CNC_Controls
         void chkAir_CheckedChanged(object sender, EventArgs e)
         {
             if (!Silent)
-                CommandGenerated(this.AirAssistCommand);
+                CommandGenerated(AirAssistCommand);
         }
 
     }
