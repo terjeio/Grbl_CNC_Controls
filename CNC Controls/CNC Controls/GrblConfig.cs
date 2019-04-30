@@ -107,7 +107,7 @@ namespace CNC_Controls
             DataGridView dgv = sender as DataGridView;
             if (dgv.SelectedRows.Count == 1) {
                 DataRow row = ((DataRowView)dgv.SelectedRows[0].DataBoundItem).Row;
-                this.txtDescription.Text = (string)row["Description"];
+                this.txtDescription.Text = ((string)row["Description"]).Replace("\\n", "\r\n");
                 if (curSetting != null)
                 {
                     curSetting.Assign();
@@ -152,6 +152,7 @@ namespace CNC_Controls
         private enum DataType {
             BOOL = 0,
             BITFIELD,
+            RADIOBUTTONS,
             INTEGER,
             FLOAT,
             TEXT
@@ -170,8 +171,10 @@ namespace CNC_Controls
         public System.Windows.Forms.Label wLabel = null, wUnit = null;
         public System.Windows.Forms.TextBox wTextBox = null;
         public System.Windows.Forms.CheckBox wCheckBox = null;
+        public System.Windows.Forms.RadioButton wRadiobutton = null;
 
         private List<System.Windows.Forms.CheckBox> checkboxes = null;
+        private List<System.Windows.Forms.RadioButton> radiobuttons = null;
         private UserControl Canvas;
 
         public Widget(DataRow Property, UserControl Canvas)
@@ -232,6 +235,26 @@ namespace CNC_Controls
                     }
                     break;
 
+                case DataType.RADIOBUTTONS:
+                    this.radiobuttons = new List<RadioButton>();
+                    string[] rformat = ((string)Property["DataFormat"]).Split(',');
+                    for (int i = 0; i < rformat.Length; i++)
+                    {
+                        this.wRadiobutton = new System.Windows.Forms.RadioButton();
+                        this.wRadiobutton.Location = new System.Drawing.Point(x, this.yPos + 4);
+                        this.wRadiobutton.Name = string.Format("_radiobutton{0}", i);
+                        this.wRadiobutton.Size = new System.Drawing.Size(Canvas.Width - x - 15, 17);
+                        this.wRadiobutton.Text = rformat[i].Trim();
+                        this.wRadiobutton.Enabled = false;
+                        this.wRadiobutton.CheckedChanged += new EventHandler(wWidget_TextChanged);
+                        this.radiobuttons.Add(this.wRadiobutton);
+                        this.components.Add(this.wRadiobutton);
+                        Canvas.Controls.Add(this.wRadiobutton);
+                        this.wRadiobutton = null;
+                        this.yPos += 20;
+                    }
+                    break;
+
                 default:
                     this.format.Replace(" ", "");
                     this.wTextBox = new System.Windows.Forms.TextBox();
@@ -286,7 +309,7 @@ namespace CNC_Controls
                     Canvas.Controls.Add(this.wLabel);
                 }
 
-                if (this.dataType != DataType.BITFIELD && (string)Property["Unit"] != "")
+                if (this.dataType != DataType.BITFIELD && this.dataType != DataType.RADIOBUTTONS && (string)Property["Unit"] != "")
                 {
                     this.wUnit = new System.Windows.Forms.Label();
                     this.wUnit.Location = new System.Drawing.Point(x + this.format.Length * PPU + 3, y);
@@ -330,6 +353,9 @@ namespace CNC_Controls
                 if (this.checkboxes != null)
                     foreach (CheckBox bitfield in this.checkboxes)
                         bitfield.Enabled = true;
+                else if (this.radiobuttons != null)
+                    foreach (RadioButton radiobutton in this.radiobuttons)
+                        radiobutton.Enabled = true;
                 else if (this.wCheckBox != null)
                     this.wCheckBox.Enabled = this.enabled;
                 else if (this.wTextBox != null)
@@ -353,6 +379,16 @@ namespace CNC_Controls
                                 val |= 0x01;
                         }
                         value = val.ToString();
+                        break;
+
+                    case DataType.RADIOBUTTONS:
+                        int rval = 0;
+                        for (rval = this.radiobuttons.Count - 1; rval >= 0; rval--)
+                        {
+                            if (this.radiobuttons[rval].Checked)
+                                break;
+                        }
+                        value = rval.ToString();
                         break;
 
                     case DataType.FLOAT:
@@ -380,6 +416,15 @@ namespace CNC_Controls
                         {
                             bitfield.Checked = (val & 0x01) == 1;
                             val >>= 1;
+                        }
+                        break;
+
+                    case DataType.RADIOBUTTONS:
+                        int rval = int.Parse(value), i = 0;
+                        foreach (RadioButton radiobutton in this.radiobuttons)
+                        {
+                            radiobutton.Checked = rval == i;
+                            i++;
                         }
                         break;
 

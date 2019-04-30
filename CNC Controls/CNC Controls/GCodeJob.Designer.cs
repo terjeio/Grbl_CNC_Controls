@@ -110,7 +110,7 @@
             this.GCodeView.RowHeadersVisible = false;
             this.GCodeView.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.GCodeView.Size = new System.Drawing.Size(392, 386);
-            this.GCodeView.TabIndex = 40;
+            this.GCodeView.TabIndex = 0;
             // 
             // LineNum
             // 

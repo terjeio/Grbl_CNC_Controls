@@ -1,7 +1,7 @@
 ﻿/*
  * Comms.cs - part of CNC Controls library
  *
- * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-29 / Io Engineering (Terje Io)
  *
  */
 
@@ -38,7 +38,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 //#define USEELTIMA
-//#define RESPONSELOG
+#if DEBUG
+#define RESPONSELOG
+#endif
 
 using System;
 using System.Collections.Generic;
@@ -308,7 +310,12 @@ namespace CNC_Controls
         ~SerialComms()
         {
 #if RESPONSELOG
-            this.log.Close();
+            if(this.log != null) try
+            {
+                this.log.Close();
+                this.log = null;
+            }
+            catch { }
 #endif
             this.Close();
         }

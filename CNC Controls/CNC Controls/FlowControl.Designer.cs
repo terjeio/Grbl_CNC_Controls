@@ -53,7 +53,7 @@
             this.chkCoolant.Location = new System.Drawing.Point(38, 52);
             this.chkCoolant.Name = "chkCoolant";
             this.chkCoolant.Size = new System.Drawing.Size(62, 17);
-            this.chkCoolant.TabIndex = 20;
+            this.chkCoolant.TabIndex = 3;
             this.chkCoolant.Text = "Coolant";
             this.chkCoolant.UseVisualStyleBackColor = true;
             // 
@@ -63,7 +63,7 @@
             this.chkExhaust.Location = new System.Drawing.Point(38, 35);
             this.chkExhaust.Name = "chkExhaust";
             this.chkExhaust.Size = new System.Drawing.Size(82, 17);
-            this.chkExhaust.TabIndex = 19;
+            this.chkExhaust.TabIndex = 2;
             this.chkExhaust.Text = "Exhaust fan";
             this.chkExhaust.UseVisualStyleBackColor = true;
             // 
@@ -73,7 +73,7 @@
             this.chkAir.Location = new System.Drawing.Point(38, 17);
             this.chkAir.Name = "chkAir";
             this.chkAir.Size = new System.Drawing.Size(67, 17);
-            this.chkAir.TabIndex = 18;
+            this.chkAir.TabIndex = 1;
             this.chkAir.Text = "Air assist";
             this.chkAir.UseVisualStyleBackColor = true;
             // 

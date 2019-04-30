@@ -83,13 +83,13 @@ namespace CNC_Controls
 
         private delegate void GcodeCallback(string data);
 
-        public delegate void GrblStateChangedHandler(GrblState grblState);
+        public delegate void GrblStateChangedHandler(GrblState grblState, bool MPGMode);
         public event GrblStateChangedHandler GrblStateChanged;
 
         public delegate void GrblParameterChangedHandler(string parameter, string values);
         public event GrblParameterChangedHandler GrblParameterChanged;
 
-        public delegate void StreamingStateChangedHandler(StreamingState state);
+        public delegate void StreamingStateChangedHandler(StreamingState state, bool MPGMode);
         public event StreamingStateChangedHandler StreamingStateChanged;
 
         public delegate void GrblMessageHandler(string message);
@@ -111,12 +111,17 @@ namespace CNC_Controls
             this.btnHold.Click += new EventHandler(btnHold_Click);
             this.btnRewind.Click += new EventHandler(btnRewind_Click);
 
+            this.MPGMode = false;
+            this.ActiveControl = this.GCodeView;
+
             this.poller = new PollGrbl();
             this.polling = new Thread(new ThreadStart(poller.run));
             polling.Start();
             System.Threading.Thread.Sleep(100);
       //      while (!polling.IsAlive);
         }
+
+        public bool MPGMode { get; private set; }
 
         public GrblStates state { get { return grblState.State; } } 
 
@@ -516,52 +521,55 @@ namespace CNC_Controls
 
                 case StreamingState.Idle:
                 case StreamingState.NoFile:
-                    this.Enabled = true;
+                    this.Enabled = !MPGMode;
                     this.btnStart.Enabled = file.Loaded;
                     this.btnStop.Enabled = false;
-                    this.btnHold.Enabled = true;
-                    this.btnRewind.Enabled = file.Loaded && this.CurrLine != 0;
+                    this.btnHold.Enabled = !MPGMode;
+                    this.btnRewind.Enabled = !MPGMode && file.Loaded && this.CurrLine != 0;
                     break;
 
                 case StreamingState.Send:
                     this.btnStart.Enabled = false;
-                    this.btnHold.Enabled = true;
-                    this.btnStop.Enabled = true;
+                    this.btnHold.Enabled = !MPGMode;
+                    this.btnStop.Enabled = !MPGMode;
                     this.btnRewind.Enabled = false;
-                    if (file.Loaded)
+                    if (file.Loaded && !MPGMode)
                         SendNextLine();
                     break;
 
                 case StreamingState.Halted:
-                    this.btnStart.Enabled = true;
+                    this.btnStart.Enabled = !MPGMode;
                     this.btnHold.Enabled = false;
-                    this.btnStop.Enabled = true;
+                    this.btnStop.Enabled = !MPGMode;
                     break;
 
                 case StreamingState.FeedHold:
-                    this.btnStart.Enabled = true;
+                    this.btnStart.Enabled = !MPGMode;
                     this.btnHold.Enabled = false;
                     break;
 
                 case StreamingState.ToolChange:
-                    this.btnStart.Enabled = true;
+                    this.btnStart.Enabled = !MPGMode;
                     this.btnHold.Enabled = false;
                     break;
 
                 case StreamingState.Stop:
                     this.btnStart.Enabled = false;
                     this.btnStop.Enabled = false;
-                    this.btnRewind.Enabled = true;
-                    Comms.com.WriteByte((byte)GrblConstants.CMD_STOP);
-                    if (JobTimer.IsRunning)
-                        JobTimer.Stop();
+                    this.btnRewind.Enabled = !MPGMode;
+                    if (!MPGMode)
+                    {
+                        Comms.com.WriteByte((byte)GrblConstants.CMD_STOP);
+                        if (JobTimer.IsRunning)
+                            JobTimer.Stop();
+                    }
                     break;
             }
 
             this.streamingState = newState;
 
             if (StreamingStateChanged != null)
-                StreamingStateChanged(this.streamingState);
+                StreamingStateChanged(this.streamingState, MPGMode);
         }
 
         void SetGRBLState(string newState, int substate, bool force)
@@ -605,7 +613,8 @@ namespace CNC_Controls
                     case GrblStates.Tool:
                         this.grblState.Color = Color.LightSalmon;
                         SetStreamingState(StreamingState.ToolChange);
-                        Comms.com.WriteByte((byte)GrblConstants.CMD_TOOL_ACK);
+                        if(!MPGMode)
+                            Comms.com.WriteByte((byte)GrblConstants.CMD_TOOL_ACK);
                         break;
 
                     case GrblStates.Hold:
@@ -631,7 +640,7 @@ namespace CNC_Controls
                 this.grblState.Substate = substate;
 
                 if (GrblStateChanged != null)
-                    GrblStateChanged(grblState);
+                    GrblStateChanged(grblState, MPGMode);
             }
         }
 
@@ -692,8 +701,10 @@ namespace CNC_Controls
                     else if (parameters.Set(pair[0], pair[1]))
                     {
                         if (pair[0] == "MPG")
-                            SetStreamingState(pair[1] == "1" ? StreamingState.Disabled : StreamingState.Idle);
-                        else if (GrblParameterChanged != null)
+                        {
+                            MPGMode = pair[1] == "1";
+                            SetStreamingState(MPGMode ? StreamingState.Disabled : StreamingState.Idle);
+                        } else if (GrblParameterChanged != null)
                             GrblParameterChanged(pair[0], pair[1]);
                     }
                 }

@@ -1,13 +1,13 @@
 ﻿/*
  * UserUI.cs - configuration tool for Grbl
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-29 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -59,7 +59,7 @@ namespace Grbl_Config_App
 
         public UserUI()
         {
-            string PortParams = "com2:115200,N,8,1,P";
+            string PortParams = "";
 
             InitializeComponent();
 
@@ -85,12 +85,16 @@ namespace Grbl_Config_App
                 System.Environment.Exit(1);
             }
 
-            this.com = new Comms(PortParams);
+#if DEBUG
+            PortParams = "com29:115200,N,8,1,P";
+#endif
 
-            if (!this.com.IsOpen)
+            new SerialComms(PortParams, Comms.ResetMode.None);
+
+            if (!Comms.com.IsOpen)
             {
                 this.com = null;
-                MessageBox.Show("Unable to open serial port!");
+                MessageBox.Show("Unable to open serial port!", this.Text);
                 System.Environment.Exit(2);
             }
 

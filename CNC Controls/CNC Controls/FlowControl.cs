@@ -75,6 +75,8 @@ namespace CNC_Controls
             get { return this.chkCoolant.Enabled; }
             set {
                 this.chkCoolant.Enabled = value;
+                this.chkExhaust.TabStop = value;
+                this.chkAir.TabStop = value;
             }
         }
 

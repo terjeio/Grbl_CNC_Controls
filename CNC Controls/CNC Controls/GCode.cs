@@ -1,13 +1,13 @@
 ﻿/*
  * GCode.cs - part of CNC Controls library
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2019-04-29 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -250,8 +250,8 @@ namespace CNC_Controls
 
             const string ignore = "$!~?";
             const string codes = "MTSGFXYZR";
-            const string all = "MTFGPSXYZIJKR [](\r";
-            const string special = "TSFXYZR";
+            const string all = "MTFGPSXYZIJKRH [](\r";
+            const string special = "HTSFXYZR";
 
             bool collect = false;
             string gcode = "";
