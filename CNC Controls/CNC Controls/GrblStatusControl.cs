@@ -1,7 +1,7 @@
 ﻿/*
  * GrblStatusControl.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
+ * v0.01 / 2019-05-02 / Io Engineering (Terje Io)
  *
  */
 
@@ -51,6 +51,9 @@ namespace CNC_Controls
     public partial class GrblStatusControl : UserControl
     {
         private delegate void SetTextCallback(string text, Color color);
+        private delegate void SetHomeBtnColorCallback(string text);
+
+        private Color HomeButtonColor;
 
         public GCodeJob GCodeSender;
 
@@ -64,6 +67,7 @@ namespace CNC_Controls
             this.chkCheckMode.CheckedChanged += new EventHandler(chkCheckMode_CheckedChanged);
 
             this.txtState.ReadOnly = true;
+            this.HomeButtonColor = this.btnHome.BackColor;
         }
 
         public bool HomingEnabled { get; set; }
@@ -81,6 +85,7 @@ namespace CNC_Controls
 
         void btnHome_Click(object sender, EventArgs e)
         {
+            this.btnHome.BackColor = Color.LightSkyBlue;
             GCodeSender.SendMDICommand(GrblConstants.CMD_HOMING);
 
             // G90 G10 L20 P0 X0 Y0 Z0
@@ -115,6 +120,26 @@ namespace CNC_Controls
             {
                 this.txtState.Text = s;
                 this.txtState.BackColor = color;
+            }
+        }
+
+        public void SetHomingState(string s)
+        {
+            if (this.btnHome.InvokeRequired)
+                this.Invoke(new SetHomeBtnColorCallback(SetHomingState), new object[] { s });
+            else switch (s)
+            {
+                case "":
+                    this.btnHome.BackColor = this.HomeButtonColor;
+                    break;
+
+                case "0":
+                    this.btnHome.BackColor = Color.LightYellow;
+                    break;
+
+                case "1":
+                    this.btnHome.BackColor = Color.LightGreen;
+                    break;
             }
         }
     }

@@ -1,7 +1,7 @@
 ﻿/*
  * GCodeJob.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
+ * v0.01 / 2019-05-10 / Io Engineering (Terje Io)
  *
  */
 
@@ -165,7 +165,7 @@ namespace CNC_Controls
 
             if (keycode == Keys.Space && this.grblState.State != GrblStates.Idle)
             {
-                SendRTCommand(GrblConstants.CMD_FEED_HOLD);
+                btnHold_Click(null, null);
                 return true;
             }
 
@@ -332,7 +332,7 @@ namespace CNC_Controls
 
         void btnHold_Click(object sender, EventArgs e)
         {
-            SendRTCommand(GrblConstants.CMD_FEED_HOLD);
+            Comms.com.WriteByte(GrblLegacy.ConvertRTCommand(GrblConstants.CMD_FEED_HOLD));
         }
 
         void btnStop_Click(object sender, EventArgs e)
@@ -401,6 +401,8 @@ namespace CNC_Controls
                     serialSize = Math.Min(300, (int)(GrblInfo.SerialBufferSize * 0.9f)); // size should be less than hardware handshake HWM
                 }
                 Comms.com.DataReceived += new DataReceivedHandler(DataReceived);
+                //if (activate) // Request a complete status report
+                //    Comms.com.WriteByte(GrblLegacy.ConvertRTCommand(GrblConstants.CMD_STATUS_REPORT_ALL));
                 poller.SetState(this.PollInterval);
             }
             else
@@ -412,8 +414,8 @@ namespace CNC_Controls
 
         public void CycleStart()
         {
-            if (this.grblState.State == GrblStates.Hold || this.grblState.State == GrblStates.Tool)
-                SendRTCommand(GrblConstants.CMD_CYCLE_START);
+            if (this.grblState.State == GrblStates.Hold || this.grblState.State == GrblStates.Tool || (this.grblState.State == GrblStates.Run && this.grblState.Substate == 1))
+                Comms.com.WriteByte(GrblLegacy.ConvertRTCommand(GrblConstants.CMD_CYCLE_START));
             else if (this.file.Loaded)
             {
                 txtRunTime.Text = "";
@@ -574,7 +576,9 @@ namespace CNC_Controls
 
         void SetGRBLState(string newState, int substate, bool force)
         {
-            GrblStates newstate = (GrblStates)Enum.Parse(typeof(GrblStates), newState);
+            GrblStates newstate = this.grblState.State;
+
+            Enum.TryParse(newState, true, out newstate);
 
             if (newstate != this.grblState.State || substate != this.grblState.Substate || force)
             {
@@ -600,6 +604,16 @@ namespace CNC_Controls
                         this.grblState.Color = Color.LightGreen;
         //                if (this.grblState.State == GrblStates.Hold || this.grblState.State == GrblStates.Door || this.grblState.State == GrblStates.Tool)
                         SetStreamingState(StreamingState.Send);
+                        if(substate == 1)
+                        {
+                            this.btnStart.Enabled = !MPGMode;
+                            this.btnHold.Enabled = false;
+                        }
+                        else if(this.grblState.Substate == 1)
+                        {
+                            this.btnStart.Enabled = false;
+                            this.btnHold.Enabled = !MPGMode;
+                        }
                         break;
 
                     case GrblStates.Alarm:
@@ -698,7 +712,7 @@ namespace CNC_Controls
                         SetGRBLState(pair[0].Substring(1), pair.Count() == 1 ? -1 : int.Parse(pair[1]), false);
                         parseState = false;
                     }
-                    else if (parameters.Set(pair[0], pair[1]))
+                    else if (pair.Length == 2 && parameters.Set(pair[0], pair[1]))
                     {
                         if (pair[0] == "MPG")
                         {
@@ -728,6 +742,11 @@ namespace CNC_Controls
                 if (GrblMessage != null)
                     GrblMessage(data);
             }
+            else if (data.StartsWith("Grbl"))
+            {
+                if (GrblParameterChanged != null)
+                    GrblParameterChanged("Reset", "");
+            }
             else if (this.streamingState != StreamingState.Jogging)
             {
                 if (data != "ok" && GrblMessage != null)
@@ -752,7 +771,7 @@ namespace CNC_Controls
                         else if ((this.pgmComplete = this.PgmEndLine == this.PendingLine))
                         {
                             this.ACKPending = this.CurrLine = 0;
-                            if(this.grblState.State == GrblStates.Idle)
+                            if (this.grblState.State == GrblStates.Idle)
                                 SetGRBLState(GrblStates.Idle.ToString(), -1, true);
                         }
                         else

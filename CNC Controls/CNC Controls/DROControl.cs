@@ -1,13 +1,13 @@
 ﻿/*
  * DROControl.cs - part of CNC Controls library
  *
- * v0.01 / 2018-12-16 / Io Engineering (Terje Io)
+ * v0.01 / 2018-05-13 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -187,6 +187,12 @@ namespace CNC_Controls
             }
         }
 
+        public void setXMode(LatheMode xmode)
+        {
+            this.lblXMode.Visible = true;
+            this.lblXMode.Text = xmode == LatheMode.Radius ? "Radius" : "Diameter";
+        }
+
         public void setNumAxes(int numAxes)
         {
             if (numAxes <= 3 || numAxes > 6)
@@ -237,17 +243,26 @@ namespace CNC_Controls
 
         public void Update(string position, bool IsMPos)
         {
+            double pos;
             useMPos = IsMPos;
             string[] s = position.Split(',');
-            for(int i = 0; i < s.Length; i++)
-                setPos(i, double.Parse(s[i], CultureInfo.InvariantCulture));
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (double.TryParse(s[i], NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out pos))
+                    setPos(i, pos);
+
+            }
         }
 
         public void UpdateOffsets(string offset)
         {
+            double pos;
             string[] s = offset.Split(',');
-            for(int i = 0; i < s.Length; i++)
-                setOffset(i, double.Parse(s[i], CultureInfo.InvariantCulture));
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (double.TryParse(s[i], NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out pos))
+                    setOffset(i, pos);
+            }
         }
 
         private void setScaled(int scaled)

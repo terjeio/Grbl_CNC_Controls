@@ -1,7 +1,7 @@
 ﻿/*
  * GrblCore.cs - part of CNC Controls library
  *
- * v0.01 / 2019-04-17 / Io Engineering (Terje Io)
+ * v0.01 / 2019-05-15 / Io Engineering (Terje Io)
  *
  */
 
@@ -49,13 +49,21 @@ using System.Diagnostics;
 
 namespace CNC_Controls
 {
+    public delegate void GCodePushHandler(String gcode, GCode.Action action);
+
     public class GrblConstants
     {
         public const byte
             CMD_EXIT = 0x03, // ctrl-C
             CMD_RESET = 0x18, // ctrl-X
             CMD_STOP = 0x19, // ctrl-Y
+            CMD_STATUS_REPORT = 0x80,
+            CMD_CYCLE_START = 0x81,
+            CMD_FEED_HOLD = 0x82,
+            CMD_GCODE_REPORT = 0x83,
+            CMD_SAFETY_DOOR = 0x84,
             CMD_JOG_CANCEL = 0x85,
+            CMD_STATUS_REPORT_ALL = 0x87,
             CMD_FEED_OVR_RESET = 0x90,
             CMD_FEED_OVR_COARSE_PLUS = 0x91,
             CMD_FEED_OVR_COARSE_MINUS = 0x92,
@@ -76,9 +84,9 @@ namespace CNC_Controls
             CMD_TOOL_ACK = 0xA3;
 
         public const string
-            CMD_STATUS_REPORT = "?",
-            CMD_CYCLE_START = "~",
-            CMD_FEED_HOLD = "!",
+            CMD_STATUS_REPORT_LEGACY = "?",
+            CMD_CYCLE_START_LEGACY = "~",
+            CMD_FEED_HOLD_LEGACY = "!",
             CMD_UNLOCK = "$X",
             CMD_HOMING = "$H",
             CMD_CHECK = "$C",
@@ -89,7 +97,9 @@ namespace CNC_Controls
             CMD_PROGRAM_DEMARCATION = "%",
             CMD_SDCARD_MOUNT = "$FM",
             CMD_SDCARD_DIR = "$F",
-            CMD_SDCARD_RUN = "$F=";
+            CMD_SDCARD_RUN = "$F=",
+            FORMAT_METRIC = "###0.0##",
+            FORMAT_IMPERIAL = "##0.0###";
 
         public const int
             X_AXIS = 0,
@@ -152,9 +162,7 @@ namespace CNC_Controls
         PWMMaxValue = 36,
         StepperDeenergizeMask = 37,
         SpindlePPR  = 38,
-        SpindlePGain  = 39,
-        SpindleIGain  = 40,
-        SpindleDGain  = 41,
+        EnableLegacyRTCommands = 39,
         HomingLocateCycles = 43,
         HomingCycle_1  = 44,
         HomingCycle_2  = 45,
@@ -167,7 +175,13 @@ namespace CNC_Controls
         JogFastSpeed = 52,
         JogStepDistance = 53,
         JogSlowDistance = 54,
-        JogFastDistance = 55
+        JogFastDistance = 55,
+        AxisSetting_XMaxRate = 110,
+        AxisSetting_XAcceleration = 120,
+        AxisSetting_YMaxRate = 111,
+        AxisSetting_YAcceleration = 121,
+        AxisSetting_ZMaxRate = 112,
+        AxisSetting_ZAcceleration = 122,
     }
 
     public enum StreamingState
@@ -193,6 +207,20 @@ namespace CNC_Controls
         Off,
         CW,
         CCW
+    }
+
+    public enum ThreadTaper
+    {
+        None,
+        Entry,
+        Exit,
+        Both
+    }
+
+    public enum LatheMode
+    {
+        Diameter = 1, // Do not change
+        Radius = 2    // Do not change
     }
 
     public struct GrblState
@@ -225,10 +253,18 @@ namespace CNC_Controls
         public string Sc { get; private set; }
         public string SD { get; private set; }
         public string Ex { get; private set; }
+        public string H { get; private set; }
+        public string D { get; private set; }
+        public string T { get; private set; }
 
         public GrblStatusParameters()
         {
-            MPos = WPos = WCO = A = FS = MPG = Ov = Sc = Pn = SD = Ex = "";
+            Clear();
+        }
+
+        public void Clear()
+        {
+            MPos = WPos = WCO = A = FS = MPG = Ov = Sc = Pn = SD = Ex = H = D = T = "";
         }
 
         public bool Set(string parameter, string value)
@@ -287,9 +323,29 @@ namespace CNC_Controls
                         this.SD = value;
                     break;
 
+                case "T":
+                    if ((changed = this.T != value))
+                    {
+                        this.T = value;
+                        GrblInfo.Tool = int.Parse(value);
+                    }
+                    break;
+
                 case "MPG":
-                    if ((changed = this.MPG != value))
-                        this.MPG = value;
+                    this.MPG = value;
+                    GrblInfo.MPGMode = value == "1";
+                    changed = true;
+                    break;
+
+                case "H":
+                    this.H = value;
+                    changed = true;
+                    break;
+
+                case "D":
+                    this.D = value;
+                    GrblInfo.LatheXMode = value == "0" ? LatheMode.Radius : LatheMode.Diameter;
+                    changed = true;
                     break;
             }
 
@@ -299,16 +355,31 @@ namespace CNC_Controls
 
     public class CoordinateSystem
     {
-        public string code;
-        public double[] pos = new double[6];
+        private double[] pos = new double[6];
+        public int id = 0;
 
-        public CoordinateSystem()
+        public CoordinateSystem(string code, string data)
         {
             for (int i = 0; i < pos.Length; i++)
                 pos[i] = 0.0;
+
+            this.code = code;
+            double[] values = Parse.Decimals(data); 
+
+            for (int i = 0; i < values.Length; i++)
+                pos[i] = values[i];
+
+            if(code.StartsWith("G5"))
+            {
+                double id = Math.Round(double.Parse(code.Substring(2), CultureInfo.InvariantCulture) - 3.0d, 1);
+
+                this.id = (int)Math.Floor(id) + (int)Math.Round((id - Math.Floor(id)) * 10.0d, 0); 
+            }
+
         }
 
         #region Attributes
+        public string code {get; set; }
         public double x { get { return pos[0]; } set { pos[0] = value; } }
         public double y { get { return pos[1]; } set { pos[1] = value; } }
         public double z { get { return pos[2]; } set { pos[2] = value; } }
@@ -318,13 +389,44 @@ namespace CNC_Controls
         #endregion
     }
 
-    public struct Tool
+    public class Tool
     {
-        public string code;
-        public double r;
-        public double x;
-        public double y;
-        public double z;
+        public string code {get; set;}
+
+        public double R { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Z { get; set; }
+        
+        public string r {
+            get { return R.ToString(CultureInfo.InvariantCulture); }
+            set { R = GetValue(value); }
+        }
+
+        public string x
+        {
+            get { return X.ToString(CultureInfo.InvariantCulture); }
+            set { X = GetValue(value); }
+        }
+
+        public string y
+        {
+            get { return Y.ToString(CultureInfo.InvariantCulture); }
+            set { Y = GetValue(value); }
+        }
+
+        public string z
+        {
+            get { return Z.ToString(CultureInfo.InvariantCulture); }
+            set { Z = GetValue(value); }
+        }
+
+        private double GetValue(string value)
+        {
+            double v = 0.0d;
+            double.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out v);
+            return v;
+        }
     }
 
     public static class GrblInfo
@@ -335,23 +437,33 @@ namespace CNC_Controls
         public static string Options { get; private set; }
         public static int SerialBufferSize { get; private set; }
         public static int NumAxes { get; private set; }
+        public static int Tool { get; set; }
         public static bool HasATC { get; private set; }
         public static bool HasSDCard { get; private set; }
         public static bool HasPIDLog { get; private set; }
+        public static bool MPGMode { get; set; }
         public static bool LatheMode { get; set; }
+        public static LatheMode LatheXMode { get; set; }
+        public static bool UseLegacyRTCommands { get; set; }
+        public static string IniName { get; set; }
         #endregion
 
         static GrblInfo()
         {
+            GrblInfo.IniName = "App.config";
             GrblInfo.AxisLetters = "XYZABC";
             GrblInfo.Version = "";
             GrblInfo.Options = "";
             GrblInfo.SerialBufferSize = 128;
             GrblInfo.NumAxes = 3;
+            GrblInfo.Tool = 0;
             GrblInfo.HasATC = false;
             GrblInfo.HasSDCard = false;
             GrblInfo.HasPIDLog = false;
             GrblInfo.LatheMode = false;
+            GrblInfo.MPGMode = false;
+            GrblInfo.LatheXMode = CNC_Controls.LatheMode.Radius;
+            GrblInfo.UseLegacyRTCommands = true;
         }
 
         public static void Get()
@@ -438,6 +550,8 @@ namespace CNC_Controls
                 Application.DoEvents();
 
             Comms.com.DataReceived -= GrblParserState.Process;
+
+            GrblInfo.LatheXMode = GrblParserState.IsActive("G7") == null ? LatheMode.Radius : LatheMode.Diameter;
         }
 
         public static void Process(string data)
@@ -450,8 +564,12 @@ namespace CNC_Controls
                 {
                     if(val.StartsWith("G51"))
                         GrblParserState.state.Add(val.Substring(0, 3), val.Substring(4));
-                    else if("FST".Contains(val.Substring(0, 1)))
+                    else if ("FST".Contains(val.Substring(0, 1)))
+                    {
                         GrblParserState.state.Add(val.Substring(0, 1), val.Substring(1));
+                        if (val.Substring(0, 1) == "T")
+                            GrblInfo.Tool = int.Parse(val.Substring(1));
+                    }
                     else
                         GrblParserState.state.Add(val, "");
                 } 
@@ -470,8 +588,8 @@ namespace CNC_Controls
 
     public class GrblWorkParameters
     {
-        public static double toolLengtOffset = 0.0f;
-        public static CoordinateSystem probePosition;
+        public static CoordinateSystem toolLengtOffset = null;
+        public static CoordinateSystem probePosition = null;
         public static List<CoordinateSystem> offset = new List<CoordinateSystem>();
         public static List<Tool> tool = new List<Tool>();
 
@@ -497,32 +615,26 @@ namespace CNC_Controls
             return data.Substring(1, sep - 1);
         }
 
-        private static CoordinateSystem parseCoord(string gCode, string data)
-        {
-            CoordinateSystem workoffset = new CoordinateSystem();
-            string[] s = data.Split(',');
-            workoffset.code = gCode;
-
-            for (int i = 0; i < s.Length; i++)
-                workoffset.pos[i] = double.Parse(s[i], CultureInfo.InvariantCulture);
-
-            return workoffset;
-        }
-
         private static void AddTool(string gCode, string data)
         {
             Tool tool = new Tool();
-            string[] s = data.Split(',');
-            tool.code = gCode;
-            tool.x = double.Parse(s[0], CultureInfo.InvariantCulture);
-            tool.y = double.Parse(s[1], CultureInfo.InvariantCulture);
-            tool.z = double.Parse(s[2], CultureInfo.InvariantCulture);
+            string[] s1 = data.Split('|');
+            string[] s2 = s1[1].Split(',');
+            tool.code = s1[0];
+            tool.x = s2[0];
+            tool.y = s2[1];
+            tool.z = s2[2];
+            if (s1.Length > 2)
+            {
+                s2 = s1[2].Split(',');
+                tool.r = s2[0];
+            }
             GrblWorkParameters.tool.Add(tool);
         }
 
         private static void process(string data)
         {
-            if (data != "ok")
+            if (data.StartsWith("["))
             {
                 string parameters, gCode = extractValues(data, out parameters);
                 switch (gCode)
@@ -539,20 +651,19 @@ namespace CNC_Controls
                     case "G59.2":
                     case "G59.3":
                     case "G92":
-                        offset.Add(parseCoord(gCode, parameters));
+                        offset.Add(new CoordinateSystem(gCode, parameters));
                         break;
 
-                    case "T1":
+                    case "T":
                         AddTool(gCode, parameters);
                         break;
 
                     case "TLO":
-                        string[] s = parameters.Split(',');
-                        toolLengtOffset = double.Parse(s[0], CultureInfo.InvariantCulture);
+                        toolLengtOffset = new CoordinateSystem(gCode, parameters);
                         break;
 
                     case "PRB":
-                        probePosition = parseCoord(gCode, parameters.Substring(0, parameters.IndexOf(":") - 1));
+                        probePosition = new CoordinateSystem(gCode, parameters.Substring(0, parameters.IndexOf(":") - 1));
                         break;
                 }
             }
@@ -597,12 +708,12 @@ namespace CNC_Controls
 
         public static string GetMessage(string key)
         {
-            string message = "";
+            string message = null;
 
             if (messages != null)
                 messages.TryGetValue(key, out message);
 
-            return message == "" ? string.Format("Error {0}", key) : message;
+            return message == null ? string.Format("Error {0}", key) : message;
         }
     }
 
@@ -758,6 +869,9 @@ namespace CNC_Controls
             {
             }
             GrblSettings.data.AcceptChanges();
+            double legacy = GetDouble(GrblSetting.EnableLegacyRTCommands);
+            if(!double.IsNaN(legacy))
+                GrblInfo.UseLegacyRTCommands = legacy == 1.0d;
         }
 
         public static void Save()
@@ -840,7 +954,30 @@ namespace CNC_Controls
 
         void pollTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            Comms.com.WriteByte(Encoding.Default.GetBytes(GrblConstants.CMD_STATUS_REPORT)[0]);
+            Comms.com.WriteByte(GrblLegacy.ConvertRTCommand(GrblConstants.CMD_STATUS_REPORT));
+        }
+    }
+
+    public static class GrblLegacy
+    {
+        public static byte ConvertRTCommand(byte cmd)
+        {
+            if (GrblInfo.UseLegacyRTCommands) switch (cmd)
+            {
+                case GrblConstants.CMD_STATUS_REPORT:
+                    cmd = (byte)GrblConstants.CMD_STATUS_REPORT_LEGACY[0];
+                    break;
+
+                case GrblConstants.CMD_CYCLE_START:
+                    cmd = (byte)GrblConstants.CMD_CYCLE_START_LEGACY[0];
+                    break;
+
+                case GrblConstants.CMD_FEED_HOLD:
+                    cmd = (byte)GrblConstants.CMD_FEED_HOLD_LEGACY[0];
+                    break;
+            }
+
+            return cmd;
         }
     }
 
@@ -899,6 +1036,23 @@ namespace CNC_Controls
         {
             JobTimer.paused = false;
             JobTimer.stopWatch.Stop();
+        }
+    }
+
+    public static class Parse
+    {
+        public static double[] Decimals(string s)
+        {
+            string[] v = s.Split(',');
+            double[] values = new double[v.Length];
+
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (!double.TryParse(v[i], NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out values[i]))
+                    values[i] = 0.0d;
+            }
+
+            return values;
         }
     }
 }

@@ -1,13 +1,13 @@
 ﻿/*
  * Interface.cs - part of CNC Controls library for Grbl
  *
- * v0.01 / 2018-09-14 / Io Engineering (Terje Io)
+ * v0.01 / 2019-05-13 / Io Engineering (Terje Io)
  *
  */
 
 /*
 
-Copyright (c) 2018, Io Engineering (Terje Io)
+Copyright (c) 2018-2019, Io Engineering (Terje Io)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -52,8 +52,13 @@ namespace CNC_App
         Mach3,
         GRBL,
         GRBLConfig,
+        Offsets,
         PIDTuner,
-        SDCard
+        SDCard,
+        G76Threading,
+        Turning,
+        Facing,
+        Parting
     }
 
     public interface IRenderer

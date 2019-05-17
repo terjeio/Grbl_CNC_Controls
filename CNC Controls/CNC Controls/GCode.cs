@@ -1,7 +1,7 @@
 ﻿/*
  * GCode.cs - part of CNC Controls library
  *
- * v0.01 / 2019-04-29 / Io Engineering (Terje Io)
+ * v0.01 / 2019-05-08 / Io Engineering (Terje Io)
  *
  */
 
@@ -52,6 +52,14 @@ namespace CNC_Controls
 
     public class GCode
     {
+        public enum Action
+        {
+            New,
+            Add,
+            End
+        }
+
+        uint LineNumber = 0;
 
         private DataTable gcode = new DataTable("GCode");
         private BindingSource source = new BindingSource();
@@ -140,24 +148,14 @@ namespace CNC_Controls
         public bool LoadFile (string filename) {
 
             bool ok = true, end;
-            int LineNumber = 0;
-
-            if (this.Loaded)
-                this.gcode.Rows.Clear();
-
-            commands.Clear();
-
-            Reset();
-
-            this.filename = filename;
 
             FileInfo file = new FileInfo(filename);
 
             StreamReader sr = file.OpenText();
 
-            this.gcode.BeginLoadData();
-
             string s = sr.ReadLine();
+
+            AddBlock(filename, Action.New);
 
             while (s != null)
             {
@@ -178,33 +176,9 @@ namespace CNC_Controls
                 }
             }
 
-            this.gcode.EndLoadData();
+            AddBlock("", Action.End);
 
             sr.Close();
-
-            if (max_feed == double.MinValue)
-            {
-                min_feed = 0.0;
-                max_feed = 0.0;
-            }
-
-            if (max_x == double.MinValue)
-            {
-                min_x = 0.0;
-                max_x = 0.0;
-            }
-
-            if (max_y == double.MinValue)
-            {
-                min_y = 0.0;
-                max_y = 0.0;
-            }
-
-            if (max_z == double.MinValue)
-            {
-                min_z = 0.0;
-                max_z = 0.0;
-            }
 
             if (ok)
             {
@@ -215,6 +189,69 @@ namespace CNC_Controls
                 CloseFile();
 
             return true;
+        }
+
+        public void AddBlock(string block, GCode.Action action)
+        {
+            bool end;
+
+            if (action == Action.New)
+            {
+                if (this.Loaded)
+                    this.gcode.Rows.Clear();
+
+                this.Reset();
+                this.commands.Clear();
+                this.gcode.BeginLoadData();
+
+                this.filename = block;
+
+            } else if(block != null && block.Trim() != "") try
+            {
+                if (ParseBlock(block.Trim() + "\r", false))
+                {
+                    end = block == "M30" || block == "M2" || block == "M02";
+                    this.gcode.Rows.Add(new object[] { LineNumber++, block, block.Length + 1, true, end, "", false });
+                    while (commands.Count > 0)
+                        this.gcode.Rows.Add(new object[] { LineNumber++, commands.Dequeue(), 20, true, false, "", false });
+                }
+            }
+            catch (Exception e)
+            {
+                // 
+            }
+
+            if (action == Action.End)
+            {
+                this.gcode.EndLoadData();
+
+                if (max_feed == double.MinValue)
+                {
+                    min_feed = 0.0;
+                    max_feed = 0.0;
+                }
+
+                if (max_x == double.MinValue)
+                {
+                    min_x = 0.0;
+                    max_x = 0.0;
+                }
+
+                if (max_y == double.MinValue)
+                {
+                    min_y = 0.0;
+                    max_y = 0.0;
+                }
+
+                if (max_z == double.MinValue)
+                {
+                    min_z = 0.0;
+                    max_z = 0.0;
+                }
+
+                if (FileChanged != null)
+                    FileChanged(this.filename);
+            }
         }
 
         public void CloseFile()
@@ -242,6 +279,7 @@ namespace CNC_Controls
             max_y = double.MinValue;
             min_z = double.MaxValue;
             max_z = double.MinValue;
+            LineNumber = 0;
         }
 
         // IMPORTANT: block must be in uppercase and terminated with \r
@@ -250,8 +288,8 @@ namespace CNC_Controls
 
             const string ignore = "$!~?";
             const string codes = "MTSGFXYZR";
-            const string all = "MTFGPSXYZIJKRH [](\r";
-            const string special = "HTSFXYZR";
+            const string all = "MTFGPSXYZIJKRHD [](\r";
+            const string special = "HTSFXYZRD";
 
             bool collect = false;
             string gcode = "";

@@ -62,6 +62,37 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="FacingWizard.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="FacingWizard.designer.cs">
+      <DependentUpon>FacingWizard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="LatheOptions.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="LatheOptions.Designer.cs">
+      <DependentUpon>LatheOptions.cs</DependentUpon>
+    </Compile>
+    <Compile Include="OffsetControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="OffsetControl.designer.cs">
+      <DependentUpon>OffsetControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ToolControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="ToolControl.Designer.cs">
+      <DependentUpon>ToolControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="WizardConfig.cs" />
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="ThreadData.cs" />
     <Compile Include="Comms.cs" />
     <Compile Include="CoolantControl.cs">
       <SubType>UserControl</SubType>
@@ -98,6 +129,12 @@
     </Compile>
     <Compile Include="FlowControl.designer.cs">
       <DependentUpon>FlowControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ThreadingWizard.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="ThreadingWizard.Designer.cs">
+      <DependentUpon>ThreadingWizard.cs</DependentUpon>
     </Compile>
     <Compile Include="GCode.cs" />
     <Compile Include="GCodeJob.cs">
@@ -175,6 +212,19 @@
     <Compile Include="SpindleControl.Designer.cs">
       <DependentUpon>SpindleControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="CoordValueControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="CoordValueControl.Designer.cs">
+      <DependentUpon>CoordValueControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="TurningWizard.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="TurningWizard.Designer.cs">
+      <DependentUpon>TurningWizard.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UIUtils.cs" />
     <Service Include="{94E38DFF-614B-4cbd-B67C-F211BB35CE8B}" />
   </ItemGroup>
   <ItemGroup>
@@ -190,11 +240,23 @@
     <EmbeddedResource Include="DROControl.resx">
       <DependentUpon>DROControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="FacingWizard.resx">
+      <DependentUpon>FacingWizard.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="FeedControl.resx">
       <DependentUpon>FeedControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FlowControl.resx">
       <DependentUpon>FlowControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="LatheOptions.resx">
+      <DependentUpon>LatheOptions.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="OffsetControl.resx">
+      <DependentUpon>OffsetControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ThreadingWizard.resx">
+      <DependentUpon>ThreadingWizard.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="GCodeJob.resx">
       <DependentUpon>GCodeJob.cs</DependentUpon>
@@ -223,6 +285,11 @@
     <EmbeddedResource Include="ProfileControl.resx">
       <DependentUpon>ProfileControl.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="SDCardControl.resx">
       <DependentUpon>SDCardControl.cs</DependentUpon>
     </EmbeddedResource>
@@ -231,6 +298,15 @@
     </EmbeddedResource>
     <EmbeddedResource Include="SpindleControl.resx">
       <DependentUpon>SpindleControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CoordValueControl.resx">
+      <DependentUpon>CoordValueControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ToolControl.resx">
+      <DependentUpon>ToolControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="TurningWizard.resx">
+      <DependentUpon>TurningWizard.cs</DependentUpon>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
@@ -243,6 +319,9 @@
       <Isolated>False</Isolated>
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </COMReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Resources\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
