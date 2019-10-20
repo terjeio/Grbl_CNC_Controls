@@ -1,5 +1,10 @@
 ## GRBL CNC Controls
 
+
+This project will most likely be archived, it is/will be superseded by the new [Grbl GCode Sender](https://github.com/terjeio/Grbl-GCode-Sender) project \(unless that fails testing\).
+
+---
+
 A collection of .NET controls written in C# that I use to build my GCode senders, including a camera control based on [AForge libraries](http://www.aforgenet.com/framework/downloads.html).
 
 #### New controls added (preview version - likely to be modified, needs testing):
